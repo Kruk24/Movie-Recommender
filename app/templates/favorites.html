@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Moje ulubione filmy</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Twoje ulubione filmy</h1>
+
+    <!-- zmienna loggedIn tak jak w home.html -->
+    <script>
+        const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
+    </script>
+
+    <div id="favorites-container">
+        {% for movie in favorites %}
+        <div class="movie">
+            <img src="{{ movie.poster }}" alt="{{ movie.title }}">
+            <h2>{{ movie.title }}</h2>
+            <p>Ocena: {{ movie.rating }}</p>
+            <!-- przycisk z id filmu -->
+            <button class="favorite-btn" data-movie-id="{{ movie.id }}">Usuń z ulubionych</button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <a href="/"><button>Powrót do strony głównej</button></a>
+
+    <script src="/static/favorites.js"></script>
+</body>
+</html>
