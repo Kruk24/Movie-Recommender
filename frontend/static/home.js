@@ -1,13 +1,13 @@
 // /static/home.js
 async function fetchUserFavoritesIds() {
-    if (!loggedIn) return [];
+    if (!isUserLoggedIn) return [];
     try {
         const res = await fetch("/user/favorites.json", { credentials: "same-origin" });
-        if (!res.ok) return [];
+        if (!res.ok) return []; // Cicha obsługa braku endpointu
         const j = await res.json();
-        return j.favorites.map(f => f.id);
+        return (j.favorites || []).map(f => f.id);
     } catch (err) {
-        console.error("fetchUserFavoritesIds error", err);
+        console.warn("Brak obsługi ulubionych lub błąd sieci:", err);
         return [];
     }
 }
@@ -30,17 +30,27 @@ function createMovieCard(f, isFav) {
     return div;
 }
 
-async function renderMovies(movies) {
+const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
+
+async function renderMovies(movies, targetElement) {
+    if (!targetElement) return;
+
+    targetElement.innerHTML = "";
+
     const container = document.getElementById("movies-container");
     container.innerHTML = "";
 
     const favIds = await fetchUserFavoritesIds();
 
     movies.forEach(f => {
-        if (!f || (!f.id && !f.title && !f.name)) return;
+        // Walidacja danych
+        const title = f.title || f.name;
+        if (!f.id && !title) return;
+
         const isFav = favIds.includes(f.id);
+
         const card = createMovieCard(f, isFav);
-        container.appendChild(card);
+        targetElement.appendChild(card);
     });
 
     // dodajemy listenery
@@ -48,10 +58,9 @@ async function renderMovies(movies) {
         btn.addEventListener("click", async (e) => {
             const movieId = btn.dataset.movieId;
             if (!movieId) {
-                // nie ma id → nic nie robimy
                 return;
             }
-            if (!loggedIn) {
+            if (!isUserLoggedIn) {
                 window.location.href = "/auth/login";
                 return;
             }
@@ -155,32 +164,58 @@ function setupGlobalSearch() {
     }
   });
 
-  input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (!q) return;
-      // perform an inline full search and render up to 20 popular matches
-      try {
-        const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
-        if (!res.ok) throw new Error('search failed');
-        const data = await res.json();
-        const hits = (data && Array.isArray(data.results)) ? data.results : [];
-        const container = document.getElementById('movies-container');
-        if (container) {
-          container.innerHTML = `<h2>Wyniki wyszukiwania dla "${escapeHtml(q)}" (${hits.length})</h2>`;
-          if (hits.length === 0) container.insertAdjacentHTML('beforeend', '<p>Brak wyników.</p>');
-          else await renderMovies(hits);
+input.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const q = input.value.trim();
+            if (!q) return;
+
+            list.classList.remove('visible'); // Ukryj podpowiedzi
+
+            try {
+                // Używamy NOWEGO endpointu v2
+                const res = await fetch(`/movies/search/v2?q=${encodeURIComponent(q)}&limit=20`);
+                if (!res.ok) throw new Error('Search API error');
+                
+                const data = await res.json();
+                const hits = data.results || [];
+
+                const container = document.getElementById('movies-container');
+                if (container) {
+                    // KROK 1: Czyścimy główny kontener raz
+                    container.innerHTML = ""; 
+
+                    // KROK 2: Budujemy strukturę HTML
+                    const header = document.createElement("h2");
+                    header.textContent = `Wyniki wyszukiwania dla: "${q}"`;
+                    header.style.marginBottom = "20px";
+                    container.appendChild(header);
+
+                    if (hits.length === 0) {
+                        const info = document.createElement("p");
+                        info.textContent = "Nie znaleziono filmów pasujących do zapytania.";
+                        container.appendChild(info);
+                    } else {
+                        // Tworzymy kontener pomocniczy (Grid), żeby oddzielić go od H2
+                        const grid = document.createElement("div");
+                        grid.className = "movies-grid"; // Możesz to ostylować w CSS
+                        grid.style.display = "flex";
+                        grid.style.flexWrap = "wrap";
+                        grid.style.gap = "20px";
+                        
+                        container.appendChild(grid);
+
+                        // KROK 3: Renderujemy karty do GRID, a nie do container
+                        await renderMovies(hits, grid);
+                    }
+                }
+            } catch (err) {
+                console.error('Search query failed', err);
+            }
+        } else if (e.key === 'Escape') {
+            list.classList.remove('visible');
         }
-      } catch (err) {
-        console.error('search query failed', err);
-      } finally {
-        list.classList.remove('visible');
-      }
-    } else if (e.key === 'Escape') {
-      list.classList.remove('visible');
-    }
-  });
+    });
 
   input.addEventListener('blur', () => {
     setTimeout(() => list.classList.remove('visible'), 150);
