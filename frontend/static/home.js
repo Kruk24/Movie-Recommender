@@ -74,8 +74,123 @@ async function renderMovies(movies) {
     });
 }
 
+// Debounce helper
+function debounce(fn, wait = 300) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function setupGlobalSearch() {
+  const input = document.getElementById('global-search');
+  const list = document.getElementById('search-suggestions');
+  if (!input || !list) return;
+
+  async function doSearch(q) {
+    if (!q || q.trim().length < 1) {
+      list.classList.remove('visible');
+      list.innerHTML = '';
+      return;
+    }
+    try {
+      const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=6`);
+      if (!res.ok) throw new Error('search failed');
+      const data = await res.json();
+      const hits = (data && Array.isArray(data.results)) ? data.results : [];
+      list.innerHTML = '';
+      if (!hits.length) {
+        list.classList.remove('visible');
+        return;
+      }
+      hits.slice(0,6).forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.title + (item.release_date ? ` (${(item.release_date || '').slice(0,4)})` : '');
+        li.dataset.query = item.title;
+        li.dataset.tmdb = item.id;
+        li.setAttribute('role', 'option');
+        li.addEventListener('click', () => {
+          // navigate to search results for the clicked title
+          window.location.href = `/?q=${encodeURIComponent(item.title)}`;
+        });
+        list.appendChild(li);
+      });
+      list.classList.add('visible');
+    } catch (err) {
+      console.error(err);
+      list.classList.remove('visible');
+    }
+  }
+
+  const debouncedSearch = debounce(e => doSearch(e.target.value), 250);
+
+  input.addEventListener('input', debouncedSearch);
+
+  // on focus: if there's a query, show matching suggestions; otherwise show top popular suggestions
+  input.addEventListener('focus', async () => {
+    const q = input.value && input.value.trim();
+    if (q) return doSearch(q);
+
+    try {
+      const res = await fetch('/movies/top/popular');
+      if (!res.ok) return;
+      const d = await res.json();
+      const hits = d.top10 || d.results || [];
+      list.innerHTML = '';
+      hits.slice(0,6).forEach(item => {
+        const li = document.createElement('li');
+        const title = item.title || item.name;
+        const year = (item.release_date || '').slice(0,4) || (item.first_air_date || '').slice(0,4) || '';
+        li.textContent = title + (year ? ` (${year})` : '');
+        li.dataset.query = title;
+        li.dataset.tmdb = item.id;
+        li.setAttribute('role', 'option');
+        li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(title)}`);
+        list.appendChild(li);
+      });
+      if (hits.length) list.classList.add('visible');
+    } catch (err) {
+      // ignore
+    }
+  });
+
+  input.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
+      // perform an inline full search and render up to 20 popular matches
+      try {
+        const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
+        if (!res.ok) throw new Error('search failed');
+        const data = await res.json();
+        const hits = (data && Array.isArray(data.results)) ? data.results : [];
+        const container = document.getElementById('movies-container');
+        if (container) {
+          container.innerHTML = `<h2>Wyniki wyszukiwania dla "${escapeHtml(q)}" (${hits.length})</h2>`;
+          if (hits.length === 0) container.insertAdjacentHTML('beforeend', '<p>Brak wyników.</p>');
+          else await renderMovies(hits);
+        }
+      } catch (err) {
+        console.error('search query failed', err);
+      } finally {
+        list.classList.remove('visible');
+      }
+    } else if (e.key === 'Escape') {
+      list.classList.remove('visible');
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => list.classList.remove('visible'), 150);
+  });
+}
+
 // eventy UI
 document.addEventListener("DOMContentLoaded", () => {
+  // initialize global search behaviors
+  setupGlobalSearch();
     document.getElementById("favorites-btn").addEventListener("click", () => window.location.href = "/user/favorites");
     document.getElementById("popular-btn").addEventListener("click", async () => {
         const res = await fetch("/movies/top/popular");
@@ -98,4 +213,39 @@ document.addEventListener("DOMContentLoaded", () => {
         if (logoutBtn) logoutBtn.style.display = "none";
         if (loginBtn) { loginBtn.style.display = "inline-block"; loginBtn.onclick = () => window.location.href = "/auth/login"; }
     }
+
+        // If the page was loaded with a search query (?q=...), perform the search and render results
+        (async function performQueryParamSearch() {
+          const params = new URLSearchParams(window.location.search);
+          const q = params.get('q');
+          if (!q || !q.trim()) return;
+
+          // populate the search input
+          const input = document.getElementById('global-search');
+          if (input) input.value = q;
+
+          try {
+            const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
+            if (!res.ok) throw new Error('search failed');
+            const data = await res.json();
+            const hits = (data && Array.isArray(data.results)) ? data.results : [];
+
+            const container = document.getElementById('movies-container');
+            if (container) {
+              // heading
+              container.innerHTML = `<h2>Wyniki wyszukiwania dla "${escapeHtml(q)}" (${hits.length})</h2>`;
+              if (hits.length === 0) {
+                container.insertAdjacentHTML('beforeend', '<p>Brak wyników.</p>');
+              } else {
+                await renderMovies(hits);
+              }
+            }
+          } catch (err) {
+            console.error('search query failed', err);
+          }
+        })();
 });
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"'`]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","`":"&#96;"})[s]);
+      }
