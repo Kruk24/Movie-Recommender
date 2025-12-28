@@ -3,3 +3,6 @@ uvicorn==0.23.2
 jinja2
 python-dotenv
 httpx
+aiosqlite
+greenlet
+sqlalchemy
