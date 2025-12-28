@@ -1,6 +1,7 @@
 body {
     font-family: Arial, sans-serif;
-    background: #f8f8f8;
+    background: #333;
+    color: #fff;
     margin: 0;
     padding: 0;
 }
@@ -29,7 +30,7 @@ nav button:hover, nav a:hover {
 button{
     margin-right: 10px;
     padding: 8px 12px;
-    background: #444;
+    background: #333;
     color: #fff;
     border: none;
     border-radius: 5px;
@@ -38,21 +39,22 @@ button{
 }
 
 button:hover{
-    background: #666;
+    background: #888;
 }
 
 #movies-container {
     padding: 20px;
 }
 
-#movies-grid {
+.movies-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 20px;
 }
 
 #movies-container div.movie {
-    background: #fff;
+    background: #ccc;
+    color: #222;
     border-radius: 8px;
     padding: 10px;
     text-align: center;
@@ -62,7 +64,7 @@ button:hover{
 .movie button.favorite-btn {
     margin-top: 10px;
     padding: 6px 10px;
-    background-color: #e50914;
+    background-color: #f40612;
     color: #fff;
     border: none;
     border-radius: 5px;
@@ -71,7 +73,7 @@ button:hover{
 }
 
 .movie button.favorite-btn:hover {
-    background-color: #f40612;
+    background-color: #e03e46ce;
 }
 
 /* Global sticky search header */
@@ -88,56 +90,104 @@ button:hover{
 }
 
 /* Keep existing header buttons intact, search sits alongside them */
-.global-search-wrapper {
-  flex: 1;
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  background: #222; /* Przywracamy ciemnoszare tło */
+  color: #fff;      /* Biały tekst */
+  border-bottom: 1px solid #444; /* Ciemniejsza linia oddzielająca */
+  padding: 10px 20px; /* Trochę więcej oddechu po bokach */
   display: flex;
-  justify-content: center;
+  align-items: center; /* Wyrównanie elementów w pionie do środka */
+  justify-content: space-between; /* Rozłożenie elementów */
+  gap: 20px;
+}
+
+/* Styl dla tytułu (Film Recommender), żeby nie rozpychał paska */
+.site-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    white-space: nowrap; /* Zapobiega łamaniu tytułu */
+}
+
+/* Kontener wyszukiwarki */
+.global-search-wrapper {
+  flex: 1; /* Sprawia, że wyszukiwarka zajmuje wolną przestrzeń */
+  display: flex;
+  justify-content: center; /* Wyszukiwarka na środku dostępnej przestrzeni */
+  max-width: 600px; /* Ograniczenie maksymalnej szerokości */
+  margin: 0 auto; /* Centrowanie */
 }
 
 .global-search {
   position: relative;
   width: 100%;
-  max-width: 760px;
-  padding: 0 10px;
-  box-sizing: border-box;
 }
 
 #global-search {
   width: 100%;
   padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+  border-radius: 20px; /* Bardziej zaokrąglony, nowoczesny wygląd */
+  border: 1px solid #555; /* Ciemniejsza ramka pasująca do tła */
+  background-color: #333; /* Ciemne tło inputa */
+  color: #fff; /* Biały tekst wpisywany */
   font-size: 15px;
   box-shadow: none;
   outline: none;
 }
 
-/* Suggestions dropdown */
+/* Placeholder (tekst "Search...") w jaśniejszym szarym */
+#global-search::placeholder {
+    color: #bbb;
+}
+
+#global-search:focus {
+    background-color: #444;
+    border-color: #777;
+}
+
+/* Nawigacja (Przyciski po prawej) */
+.site-header nav {
+    display: flex;
+    gap: 10px;
+    white-space: nowrap;
+}
+
+/* Suggestions dropdown - Poprawione kolory */
 .suggestions {
   list-style: none;
   margin: 6px 0 0;
-  padding: 6px 0;
+  padding: 0;
   position: absolute;
-  left: 10px;
-  right: 10px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  left: 0; /* Wyrównanie do inputa */
+  right: 0;
+  background: #333; /* Ciemne tło podpowiedzi */
+  color: #fff;
+  border: 1px solid #555;
   border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
   max-height: 260px;
   overflow-y: auto;
   display: none;
   z-index: 1000;
 }
+
 .suggestions.visible { display: block; }
+
 .suggestions li {
-  padding: 8px 12px;
+  padding: 10px 14px;
   cursor: pointer;
-}
-.suggestions li:hover, .suggestions li[aria-selected="true"] {
-  background: #f2f2f2;
+  border-bottom: 1px solid #444;
 }
 
-/* Ensure favorites page doesn't show search by not adding markup there.
-   Add small offset so sticky header doesn't overlay content */
-.main-content { padding-top: 8px; }
+.suggestions li:last-child {
+    border-bottom: none;
+}
+
+.suggestions li:hover, .suggestions li[aria-selected="true"] {
+  background: #dbb714;
+  color: #fff;
+}
+
+.main-content { padding-top: 20px; }

@@ -195,7 +195,7 @@ function setupGlobalSearch() {
       list.classList.remove('visible');
 
       try {
-        const res = await fetch(`/movies/search/v2?q=${encodeURIComponent(q)}&limit=20`);
+        const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
         if (!res.ok) throw new Error('search failed');
         const data = await res.json();
         const hits = (data && Array.isArray(data.results)) ? data.results : [];
