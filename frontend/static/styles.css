@@ -9,7 +9,7 @@ body {
 header {
     background: #222;
     color: #fff;
-    padding: 1em;
+    padding: 1em 100px;
 }
 
 nav button, nav a {
@@ -43,13 +43,26 @@ button:hover{
 }
 
 #movies-container {
-    padding: 20px;
+    /* Ograniczenie szerokości i centrowanie */
+    max-width: 1600px; 
+    margin: 0 auto; 
+    
+    /* "Paski po bokach" - padding 100px z lewej i prawej */
+    padding: 20px 100px;
+}
+
+/* Responsywność: Na telefonach usuwamy wielkie marginesy */
+@media (max-width: 768px) {
+    #movies-container {
+        padding: 20px;
+    }
 }
 
 .movies-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-column-gap: 30px;
+    grid-row-gap: 50px;
 }
 
 #movies-container div.movie {
@@ -59,24 +72,82 @@ button:hover{
     padding: 10px;
     text-align: center;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+
+    /* Flexbox do układania elementów w pionie */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Rozpycha elementy (tytuł góra, przycisk dół) */
+    height: 100%; /* Karta zajmuje całą wysokość wiersza w gridzie */
 }
 
+/* Tytuł filmu - ucinanie po 2 liniach */
+.movie h3 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    line-height: 1.2em;
+    height: 2.4em; /* Rezerwujemy miejsce na dokładnie 2 linie tekstu */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Maksymalnie 2 linie */
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+/* Plakat - stała wysokość, żeby nie skakał */
+.movie img {
+    width: 150px;       /* Stała szerokość */
+    height: 225px;      /* Stała wysokość (proporcja 2:3) */
+    object-fit: cover;  /* Dopasowanie obrazka bez rozciągania */
+    border-radius: 4px;
+    margin: 0 auto 10px auto; /* Wyśrodkowanie i odstęp od dołu */
+}
+
+/* Kontener na ocenę i pasek */
+.movie-rating-box {
+    margin-bottom: 10px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Pasek tła (szary) */
+.rating-bar {
+    width: 80%; /* Pasek na 80% szerokości karty */
+    height: 6px;
+    background-color: #555;
+    border-radius: 3px;
+    overflow: hidden; /* Żeby żółty pasek nie wyjechał poza zaokrąglenie */
+}
+
+/* Wypełnienie paska (żółte) */
+.rating-fill {
+    height: 100%;
+    background-color: #f5c518; /* Kolor gwiazdki */
+    width: 0%; /* Domyślnie 0, JS to ustawi */
+    transition: width 0.3s ease;
+}
+
+/* Przycisk - dopychany do dołu przez flex: column w rodzicu */
 .movie button.favorite-btn {
-    margin-top: 10px;
-    padding: 6px 10px;
-    background-color: #f40612;
+    margin-top: auto;
+    padding: 8px 10px;
+    background-color: #f40606;
     color: #fff;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     transition: background 0.2s;
+    width: 100%; /* Przycisk na pełną szerokość wygląda schludniej */
 }
 
 .movie button.favorite-btn:hover {
-    background-color: #e03e46ce;
+    background-color: #e2682fce;
 }
 
-/* Global sticky search header */
+/* Global sticky search header
 .site-header {
   position: sticky;
   top: 0;
@@ -87,7 +158,7 @@ button:hover{
   display: flex;
   align-items: center;
   gap: 12px;
-}
+}*/
 
 /* Keep existing header buttons intact, search sits alongside them */
 .site-header {
@@ -96,8 +167,8 @@ button:hover{
   z-index: 999;
   background: #222; /* Przywracamy ciemnoszare tło */
   color: #fff;      /* Biały tekst */
-  border-bottom: 1px solid #444; /* Ciemniejsza linia oddzielająca */
-  padding: 10px 20px; /* Trochę więcej oddechu po bokach */
+  border-bottom: 1px solid #111; /* Ciemniejsza linia oddzielająca */
+  padding: 10px 100px; /* Trochę więcej oddechu po bokach */
   display: flex;
   align-items: center; /* Wyrównanie elementów w pionie do środka */
   justify-content: space-between; /* Rozłożenie elementów */
@@ -191,3 +262,129 @@ button:hover{
 }
 
 .main-content { padding-top: 20px; }
+
+
+/* --- Szczegóły Filmu (details.html) --- */
+
+.details-wrapper {
+    /* Te same marginesy co na głównej */
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 20px 100px; /* Paski po bokach */
+    
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    color: #333;
+}
+
+@media (max-width: 768px) {
+    .details-wrapper {
+        padding: 20px;
+        margin: 20px;
+    }
+}
+
+/* Układ główny: Plakat (lewo) - Info (prawo) */
+.movie-details-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 40px;
+}
+
+@media (max-width: 768px) {
+    .movie-details-grid {
+        grid-template-columns: 1fr; /* Na telefonach jedna kolumna */
+    }
+    .details-poster img {
+        margin: 0 auto;
+        display: block;
+    }
+}
+
+.details-poster img {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.details-info h2 {
+    margin-top: 0;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.meta-info {
+    font-size: 0.95rem;
+    color: #666;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.rating-badge {
+    background: #f5c518;
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.section-title {
+    margin-top: 25px;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 5px;
+}
+
+/* Siatka aktorów */
+.cast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 15px;
+}
+
+.cast-member {
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+.cast-member img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 50%; /* Okrągłe zdjęcia */
+    margin-bottom: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Dostawcy (streaming) */
+.providers-list {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.provider-logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+}
+
+/* Duży przycisk akcji */
+.action-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 24px;
+    background-color: #e50914;
+    color: #fff;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+.action-btn:hover { background-color: #b20710; }

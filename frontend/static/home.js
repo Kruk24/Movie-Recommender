@@ -16,17 +16,45 @@ async function fetchUserFavoritesIds() {
 function createMovieCard(f, isFav) {
     const posterUrl = f.poster_path ? `https://image.tmdb.org/t/p/w200${f.poster_path}` : (f.poster || "https://via.placeholder.com/150");
     const div = document.createElement("div");
-    div.classList.add("movie");
+    div.classList.add("movie"); // Klasa z CSS
 
-    // przycisk zawsze w DOM, zachowanie zależne od loggedIn
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
     const btnAttr = f.id ? `data-movie-id="${f.id}"` : "";
+    
+    // Rok produkcji
     const release_year = (f.release_date || f.first_air_date || "").slice(0, 4) || "—";
 
+    // Ocena i pasek
+    const rawRating = f.vote_average ?? (f.rating ?? 0);
+    const ratingText = rawRating ? rawRating.toFixed(1) : "0.0";
+    
+    // Obliczamy procent zapełnienia paska (np. ocena 6.7 * 10 = 67%)
+    const ratingPercent = Math.min(Math.max(rawRating * 10, 0), 100);
+
+    const type = f.media_type || "movie"; 
+
+    // Tworzymy link do details.html
+    const detailsUrl = `/details.html?id=${f.id}&type=${type}`;
+
     div.innerHTML = `
-        <h2>${f.title || f.name} (${release_year})</h2>
-        <img src="${posterUrl}" alt="${f.title || f.name}" width="150">
-        <p>Ocena: ${f.vote_average ?? (f.rating ?? "—")}</p>
+        <a href="${detailsUrl}" style="text-decoration: none; color: inherit; width: 100%;">
+            <h3>${f.title || f.name} (${release_year})</h3>
+        </a>
+
+        <a href="${detailsUrl}">
+            <img src="${posterUrl}" alt="${f.title || f.name}">
+        </a>
+        
+        <div class="movie-rating-box">
+             <p style="margin: 0; display: flex; align-items: center; gap: 5px;">
+                Ocena: ${ratingText}
+                <span style="color: #f5c518; font-size: 1.2em;">★</span>
+            </p>
+            <div class="rating-bar">
+                <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
+            </div>
+        </div>
+
         <button class="favorite-btn" ${btnAttr}>${btnText}</button>
     `;
     return div;
@@ -130,20 +158,33 @@ function setupGlobalSearch() {
       if (!res.ok) throw new Error('search failed');
       const data = await res.json();
       const hits = (data && Array.isArray(data.results)) ? data.results : [];
+
       list.innerHTML = '';
       if (!hits.length) {
         list.classList.remove('visible');
         return;
       }
+
       hits.slice(0,6).forEach(item => {
         const li = document.createElement('li');
-        li.textContent = item.title + (item.release_date ? ` (${(item.release_date || '').slice(0,4)})` : '');
-        li.dataset.query = item.title;
-        li.dataset.tmdb = item.id;
-        li.setAttribute('role', 'option');
-        li.addEventListener('click', () => {
-          // navigate to search results for the clicked title
-          window.location.href = `/?q=${encodeURIComponent(item.title)}`;
+        const year = (item.release_date || item.first_air_date || '').slice(0,4);
+        li.textContent = item.title + (year ? ` (${year})` : '');
+        
+        li.addEventListener('click', async () => {
+          // 1. Uzupełnij input nazwą (dla estetyki)
+          input.value = item.title;
+          // 2. Schowaj listę
+          list.classList.remove('visible');
+          
+          // 3. Zamiast przeładowywać stronę i szukać tekstem, 
+          // OD RAZU renderujemy ten konkretny obiekt, który mamy w pamięci.
+          const container = document.getElementById('movies-container');
+          if (container) {
+             // Używamy Twojej funkcji prepareView
+             const grid = prepareView(container, `Wybrany wynik: "${item.title}"`);
+             // Przekazujemy tablicę z tym jednym filmem do renderMovies
+             await renderMovies([item], grid);
+          }
         });
         list.appendChild(li);
       });
@@ -259,34 +300,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // If the page was loaded with a search query (?q=...), perform the search and render results
         (async function performQueryParamSearch() {
-          const params = new URLSearchParams(window.location.search);
-          const q = params.get('q');
-          if (!q || !q.trim()) return;
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('q');
+        if (!q || !q.trim()) return;
 
-          // populate the search input
-          const input = document.getElementById('global-search');
-          if (input) input.value = q;
+        const input = document.getElementById('global-search');
+        if (input) input.value = q;
 
-          try {
+        try {
             const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
-            if (!res.ok) throw new Error('search failed');
             const data = await res.json();
-            const hits = (data && Array.isArray(data.results)) ? data.results : [];
-
+            const hits = data.results || [];
             const container = document.getElementById('movies-container');
+            
             if (container) {
-              // heading
-              container.innerHTML = `<h2>Wyniki wyszukiwania dla "${escapeHtml(q)}" (${hits.length})</h2>`;
-              if (hits.length === 0) {
-                container.insertAdjacentHTML('beforeend', '<p>Brak wyników.</p>');
-              } else {
-                await renderMovies(hits);
-              }
+                // TUTAJ BYŁ BŁĄD: brakowało 'grid' jako drugiego argumentu
+                const grid = prepareView(container, `Wyniki wyszukiwania dla "${q}" (${hits.length})`);
+                if (hits.length === 0) {
+                    container.insertAdjacentHTML('beforeend', '<p>Brak wyników spełniających kryteria.</p>');
+                } else {
+                    await renderMovies(hits, grid); // Teraz przekazujemy grid!
+                }
             }
-          } catch (err) {
-            console.error('search query failed', err);
-          }
-        })();
+        } catch (err) { console.error(err); }
+    })();
 });
 
       function escapeHtml(str) {
