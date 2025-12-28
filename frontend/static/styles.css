@@ -42,13 +42,16 @@ button:hover{
 }
 
 #movies-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 20px;
     padding: 20px;
 }
 
-#movies-container div {
+#movies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+#movies-container div.movie {
     background: #fff;
     border-radius: 8px;
     padding: 10px;
