@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Twoje ulubione filmy</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class="site-header">
+        <h1><a href="/" style="color: inherit; text-decoration: none;">Film Recommender</a></h1>
+        
+        <div class="global-search-wrapper">
+            <div class="global-search">
+                <input id="global-search" type="search" placeholder="Search movies, series..." aria-label="Search movies" autocomplete="off" />
+                <ul id="search-suggestions" class="suggestions" role="listbox" aria-live="polite"></ul>
+            </div>
+        </div>
+
+        <nav>
+            <button onclick="window.location.href='/'">❮ Wróć</button>
+            <button id="login-btn">Zaloguj</button>
+            <button id="logout-btn">Wyloguj</button>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        <div id="movies-container">
+            <p style="text-align: center; margin-top: 50px;">Ładowanie ulubionych...</p>
+        </div>
+    </main>
+    
+    <script>
+        const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
+    </script>
+    <script src="/static/favorites.js"></script>
+</body>
+</html>

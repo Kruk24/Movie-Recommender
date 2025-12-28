@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Film Recommender</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class = "site-header">
+        <h1>Film Recommender</h1>
+        <div class="global-search-wrapper">
+            <div class="global-search">
+                <input id="global-search" type="search" placeholder="Search movies, series..." aria-label="Search movies" autocomplete="off" />
+                <ul id="search-suggestions" class="suggestions" role="listbox" aria-live="polite"></ul>
+            </div>
+        </div>
+        <nav>
+            <button id="favorites-btn">Ulubione</button>
+            <button id="popular-btn">Popularne</button>
+            <button id="toprated-btn">Najlepiej oceniane</button>
+            <button id="login-btn">Zaloguj</button>
+            <button id="logout-btn">Wyloguj</button>
+        </nav>
+    </header>
+
+    <main>
+        <div id="movies-container">
+            <p>Wybierz kategorię, aby zobaczyć filmy 🎬</p>
+        </div>
+    </main>
+
+    <script>
+        // Sprawdzamy, czy user jest zalogowany
+        const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
+    </script>
+    <script src="/static/home.js"></script>
+</body>
+</html>
