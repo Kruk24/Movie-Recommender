@@ -9,23 +9,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     const mediaType = params.get("type") || "movie";
 
     if (!tmdbId) {
-        document.getElementById("details-root").innerHTML = "<p style='text-align:center; padding:50px;'>Brak identyfikatora.</p>";
+        document.getElementById("details-container").innerHTML = "<p style='text-align:center; padding:50px;'>Brak ID filmu.</p>";
         return;
     }
 
     try {
         const res = await fetch(`/movies/details/${mediaType}/${tmdbId}`);
-        if (!res.ok) throw new Error("Błąd pobierania danych");
+        if (!res.ok) throw new Error("Błąd");
         const data = await res.json();
         renderDetails(data);
     } catch (err) {
         console.error(err);
-        document.getElementById("details-root").innerHTML = "<p style='text-align:center; padding:50px; color:red;'>Nie udało się pobrać szczegółów.</p>";
+        document.getElementById("details-container").innerHTML = "<p style='text-align:center; padding:50px; color:#e50914;'>Nie udało się pobrać szczegółów.</p>";
     }
 });
 
+// Funkcja pomocnicza do zamiany listy obiektów (np. [{name: 'USA'}]) na string "USA"
+function formatList(list) {
+    if (!list || list.length === 0) return "—";
+    // Sprawdzamy czy elementy to obiekty z polem 'name', czy stringi
+    return list.map(item => (typeof item === 'object' && item.name) ? item.name : item).join(", ");
+}
+
 async function renderDetails(movie) {
-    const container = document.getElementById("details-root");
+    const container = document.getElementById("details-container");
+    
     let isFav = false;
     if (isUserLoggedIn) {
         try {
@@ -37,49 +45,48 @@ async function renderDetails(movie) {
         } catch(e) {}
     }
 
-    // Obrazy
-    const backdropUrl = movie.backdrop_path 
-        ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}` 
-        : ""; // Puste tło, jeśli brak
-    const posterUrl = movie.poster_path 
-        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` 
-        : "https://via.placeholder.com/300x450?text=Brak+Okładki";
-
-    // Meta dane
+    const backdrop = movie.backdrop_path ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}` : "";
+    const poster = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "https://via.placeholder.com/300x450";
     const year = (movie.release_date || movie.first_air_date || "").slice(0,4);
-    const rating = movie.vote_average ? movie.vote_average.toFixed(1) : "—";
+    const typeLabel = movie.media_type === "tv" ? "Serial" : "Film";
     
     // Czas trwania
     let duration = 0;
     if (movie.runtime) duration = movie.runtime;
     else if (movie.episode_run_time && movie.episode_run_time.length) duration = movie.episode_run_time[0];
     
-    let runtimeStr = "";
+    let runtimeStr = "Czas nieznany";
     if (duration > 0) {
         const h = Math.floor(duration / 60);
         const m = duration % 60;
         runtimeStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
-    } else {
-        runtimeStr = "Czas nieznany";
     }
 
-    const genresList = movie.genres ? movie.genres.map(g => g.name).join(", ") : "Brak gatunków";
-    const directors = movie.directors ? movie.directors.map(d => d.name).join(", ") : "—";
+    // NAPRAWA [object Object]: Używamy funkcji formatList
+    const genres = formatList(movie.genres);
+    const countries = formatList(movie.production_countries);
+    
+    // Reżyserzy (czasem są obiektami, czasem stringami z backendu - tu zakładamy obiekty z backendu api/movies.py)
+    // Backend API zwracał listę, więc:
+    let directorsStr = "—";
+    if (movie.directors && movie.directors.length > 0) {
+        directorsStr = formatList(movie.directors);
+    }
 
-    // Obsada (Scroller)
-    const castHtml = (movie.cast || []).map(actor => {
-        const pic = actor.profile_path ? `https://image.tmdb.org/t/p/w200${actor.profile_path}` : "https://via.placeholder.com/150?text=Brak";
+    const bgStyle = backdrop ? `background-image: url('${backdrop}');` : "background-color: #222;";
+
+    const castHtml = (movie.cast || []).map(a => {
+        const p = a.profile_path ? `https://image.tmdb.org/t/p/w200${a.profile_path}` : "https://via.placeholder.com/150?text=Brak";
         return `
             <div class="cast-card">
-                <img src="${pic}" alt="${actor.name}">
+                <img src="${p}" alt="${a.name}">
                 <div class="cast-info">
-                    <span class="cast-name">${actor.name}</span>
-                    <span class="cast-char">${actor.character || ""}</span>
+                    <div style="font-weight:bold; font-size:0.9rem;">${a.name}</div>
+                    <div style="font-size:0.75rem; opacity:0.7;">${a.character || ""}</div>
                 </div>
             </div>`;
     }).join("");
 
-    // Providerzy
     let providersHtml = "";
     const providers = movie["watch/providers"]?.results?.PL?.flatrate || movie.watch_providers || [];
     if (providers.length > 0) {
@@ -90,79 +97,78 @@ async function renderDetails(movie) {
         providersHtml = "<span style='opacity:0.6; font-size:0.9rem;'>Brak informacji o streamingu w PL.</span>";
     }
 
-    // HTML Structure
-    const backdropStyle = backdropUrl ? `background-image: url('${backdropUrl}');` : "background-color: #222;";
-
     container.innerHTML = `
-        <div class="backdrop-container" style="${backdropStyle}">
-            <div class="backdrop-overlay"></div>
-            
-            <div class="details-content-wrapper">
-                <div class="poster-card">
-                    <img src="${posterUrl}" alt="${movie.title}">
-                    <div style="padding: 15px; background: rgba(0,0,0,0.6);">
-                        <button id="fav-btn-detail" class="action-btn" style="width:100%; justify-content:center;">
+        <div class="hero-container" style="${bgStyle}">
+            <div class="hero-overlay"></div>
+            <div class="details-content">
+                <div class="poster-wrapper">
+                    <img src="${poster}" alt="${movie.title}">
+                    <div style="background:rgba(0,0,0,0.8); padding:15px; text-align:center;">
+                        <button id="fav-btn-detail" class="action-btn" style="width:100%;">
                             ${isFav ? "Usuń z ulubionych 💔" : "Dodaj do ulubionych ❤️"}
                         </button>
                     </div>
                 </div>
-
-                <div class="info-col">
-                    <h2 class="movie-title">${movie.title || movie.name} <span class="year-tag">(${year})</span></h2>
+                <div class="info-wrapper">
+                    <h2>${movie.title || movie.name} <span style="font-weight:300; opacity:0.7;">(${year})</span></h2>
                     
-                    <div class="meta-row">
-                        <div class="score-circle">⭐ ${rating}</div>
+                    <div class="meta-data">
+                        <span class="score">★ ${movie.vote_average ? movie.vote_average.toFixed(1) : "0.0"}</span>
+                        <span class="badge">${typeLabel}</span>
                         <span class="badge">⏱ ${runtimeStr}</span>
-                        <span class="badge">${genresList}</span>
+                        <span class="badge">${genres}</span>
                     </div>
 
-                    ${movie.tagline ? `<p class="tagline">"${movie.tagline}"</p>` : ""}
-
-                    <div class="overview-section">
-                        <h3>Opis</h3>
-                        <p class="overview-text">${movie.overview || "Brak opisu w języku polskim."}</p>
+                    <div class="description">
+                        ${movie.overview || "Brak opisu."}
                     </div>
 
-                    <div class="overview-section">
-                        <h3>Twórcy</h3>
-                        <p>${directors}</p>
-                    </div>
-
-                    <div class="overview-section">
-                        <h3>Gdzie obejrzeć</h3>
-                        <div class="providers-row">${providersHtml}</div>
-                    </div>
-
-                    <div class="overview-section">
-                        <h3>Obsada</h3>
-                        <div class="cast-scroller">
-                            ${castHtml}
+                    <div class="crew-grid">
+                        <div class="crew-item">
+                            <strong>Reżyseria / Twórcy</strong>
+                            <span>${directorsStr}</span>
+                        </div>
+                        <div class="crew-item">
+                            <strong>Kraj produkcji</strong>
+                            <span>${countries}</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <div class="extra-section">
+            <div class="section-header">Obsada</div>
+            <div class="cast-row">
+                ${castHtml}
+            </div>
+        </div>
+
+        <div class="extra-section">
+            <div class="section-header">Gdzie obejrzeć</div>
+            <div class="providers-row">
+                ${providersHtml}
+            </div>
+        </div>
     `;
 
-    // Listener przycisku
     const btn = document.getElementById("fav-btn-detail");
     btn.addEventListener("click", async () => {
         if (!isUserLoggedIn) { window.location.href = "/auth/login"; return; }
         btn.disabled = true;
-        const originalText = btn.innerHTML;
+        const oldText = btn.innerHTML;
         btn.innerHTML = "Przetwarzanie...";
         try {
             const res = await fetch(`/user/favorite/${movie.id}`, { method: "POST", credentials: "same-origin" });
             if (res.ok) {
                 const d = await res.json();
                 btn.innerHTML = d.removed ? "Dodaj do ulubionych ❤️" : "Usuń z ulubionych 💔";
-            } else { btn.innerHTML = originalText; }
-        } catch (e) { btn.innerHTML = originalText; } 
+            } else { btn.innerHTML = oldText; }
+        } catch(e) { btn.innerHTML = oldText; }
         finally { btn.disabled = false; }
     });
 }
 
-// Helpers
 function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");
@@ -176,6 +182,7 @@ function setupAuthButtons() {
 }
 
 function setupDetailsSearch() {
+    // Standardowa funkcja search... (skopiuj z poprzednich, jeśli brakuje, ale powinna być w pliku)
     const input = document.getElementById('global-search');
     const list = document.getElementById('search-suggestions');
     if (!input || !list) return;

@@ -5,139 +5,127 @@
     <title>Szczegóły - Film Recommender</title>
     <link rel="stylesheet" href="/static/styles.css">
     <style>
-        /* --- ESTETYCZNE STYLE DETALI --- */
-        body { background-color: #111; color: #fff; margin: 0; }
-
-        .backdrop-container {
+        body { background-color: #111; }
+        
+        /* Hero Banner */
+        .hero-container {
             position: relative;
             width: 100%;
-            min-height: 600px;
+            min-height: 80vh; /* Większy banner */
             background-size: cover;
             background-position: center top;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #fff;
+            margin-top: -1px; /* fix gap */
         }
-
-        /* Ciemna nakładka na tło, żeby tekst był czytelny */
-        .backdrop-overlay {
+        
+        .hero-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(to right, rgba(10,10,10, 0.9) 20%, rgba(10,10,10, 0.7) 60%, rgba(10,10,10, 0.4) 100%);
+            background: linear-gradient(to right, #141414 15%, rgba(20,20,20, 0.85) 50%, rgba(20,20,20, 0.5) 100%),
+                        linear-gradient(to top, #141414 0%, transparent 20%);
             z-index: 1;
         }
 
-        .details-content-wrapper {
+        .details-content {
             position: relative;
             z-index: 2;
-            max-width: 1200px;
+            max-width: 1400px; /* Szerszy kontener */
             width: 100%;
-            padding: 40px;
+            padding: 60px 40px;
             display: flex;
-            gap: 40px;
+            gap: 60px;
             align-items: flex-start;
         }
 
-        .poster-card {
+        .poster-wrapper {
             flex-shrink: 0;
-            width: 300px;
-            border-radius: 12px;
+            width: 350px;
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            transform: translateY(20px);
         }
-        .poster-card img { width: 100%; display: block; }
+        .poster-wrapper img { width: 100%; display: block; }
 
-        .info-col { flex: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .info-wrapper { flex: 1; padding-top: 20px; }
 
-        h2.movie-title {
-            font-size: 3rem; margin: 0 0 10px 0; font-weight: 700;
-            line-height: 1.1;
-        }
-        .year-tag { font-weight: 300; opacity: 0.8; }
+        h2 { font-size: 3.5rem; margin: 0 0 15px 0; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        h2 span { font-weight: 300; opacity: 0.6; font-size: 2.5rem; }
 
-        .meta-row {
-            display: flex; gap: 15px; align-items: center; margin-bottom: 25px; flex-wrap: wrap;
+        .meta-data {
+            display: flex; gap: 15px; align-items: center; margin-bottom: 30px; flex-wrap: wrap;
         }
         .badge {
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(4px);
+            background: rgba(255,255,255,0.1);
+            padding: 6px 14px; border-radius: 6px;
+            font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(5px);
         }
-        .score-circle {
-            display: flex; align-items: center; gap: 5px;
-            font-size: 1.2rem; font-weight: bold; color: #f5c518;
+        .score { font-weight: 900; color: #46d369; font-size: 1.4rem; display: flex; align-items: center; gap: 5px; }
+
+        .description { font-size: 1.2rem; line-height: 1.7; margin-bottom: 40px; color: #ddd; max-width: 900px; }
+
+        .crew-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; margin-bottom: 30px; 
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px;
         }
-
-        .tagline { font-style: italic; opacity: 0.7; margin-bottom: 15px; font-size: 1.1rem; }
-        
-        .overview-section { margin-bottom: 30px; }
-        .overview-section h3 { margin-bottom: 10px; font-size: 1.3rem; border-bottom: 1px solid rgba(255,255,255,0.2); display: inline-block; padding-bottom: 5px;}
-        .overview-text { line-height: 1.6; font-size: 1rem; opacity: 0.9; }
-
-        .crew-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .crew-item strong { display: block; }
-        .crew-item span { font-size: 0.85rem; opacity: 0.7; }
+        .crew-item strong { display: block; font-size: 1rem; margin-bottom: 5px; color: #fff; }
+        .crew-item span { font-size: 0.95rem; color: #aaa; }
 
         .action-btn {
-            background-color: #e50914; color: white; border: none; padding: 12px 24px;
-            font-size: 1rem; border-radius: 30px; cursor: pointer; font-weight: bold;
-            transition: background 0.2s, transform 0.2s; box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4);
-            display: inline-flex; align-items: center; gap: 8px;
+            background: #e50914; color: white; border: none; padding: 15px 0;
+            font-size: 1.1rem; cursor: pointer; font-weight: 700;
+            transition: all 0.3s; letter-spacing: 1px; text-transform: uppercase;
         }
-        .action-btn:hover { background-color: #b20710; transform: translateY(-2px); }
-        .action-btn:disabled { background-color: #555; cursor: wait; }
+        .action-btn:hover { background: #ff0f1f; }
 
-        /* Obsada pozioma */
-        .cast-scroller {
-            display: flex; gap: 15px; overflow-x: auto; padding-bottom: 20px;
-            mask-image: linear-gradient(to right, black 90%, transparent 100%);
-        }
-        .cast-scroller::-webkit-scrollbar { height: 8px; }
-        .cast-scroller::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        /* Sekcje dodatkowe */
+        .extra-section { padding: 40px 60px; max-width: 1400px; margin: 0 auto; }
+        .section-header { font-size: 1.8rem; margin-bottom: 25px; border-left: 5px solid #e50914; padding-left: 20px; font-weight: 700; }
         
-        .cast-card {
-            width: 130px; flex-shrink: 0; background: rgba(255,255,255,0.1);
-            border-radius: 8px; overflow: hidden;
-        }
-        .cast-card img { width: 100%; height: 180px; object-fit: cover; }
-        .cast-info { padding: 8px; font-size: 0.85rem; text-align: center; }
-        .cast-name { font-weight: bold; display: block; margin-bottom: 2px; }
-        .cast-char { opacity: 0.7; font-size: 0.75rem; }
+        .cast-row { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 20px; }
+        .cast-row::-webkit-scrollbar { height: 8px; }
+        .cast-row::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
 
-        /* Providerzy */
-        .providers-row { display: flex; gap: 10px; margin-top: 10px; }
-        .provider-logo { width: 45px; height: 45px; border-radius: 8px; }
+        .cast-card { min-width: 150px; width: 150px; background: #222; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .cast-card img { width: 100%; height: 200px; object-fit: cover; }
+        .cast-info { padding: 10px; font-size: 0.9rem; text-align: center; }
 
-        @media (max-width: 768px) {
-            .details-content-wrapper { flex-direction: column; align-items: center; }
-            .info-col { text-align: center; }
-            .meta-row { justify-content: center; }
-            .backdrop-overlay { background: rgba(10,10,10, 0.85); } /* Ciemniej na mobilkach */
+        .providers-row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .provider-logo { width: 60px; height: 60px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: transform 0.2s; }
+        .provider-logo:hover { transform: scale(1.1); }
+
+        @media (max-width: 900px) {
+            .details-content { flex-direction: column; align-items: center; padding: 30px 20px; }
+            .info-wrapper { text-align: center; padding-top: 0; }
+            .meta-data { justify-content: center; }
+            .poster-wrapper { width: 250px; margin-bottom: 30px; transform: none; }
+            h2 { font-size: 2.5rem; }
+            .description { font-size: 1rem; }
         }
     </style>
 </head>
 <body>
-
     <header class="site-header">
         <h1><a href="/" style="color: inherit; text-decoration: none;">Film Recommender</a></h1>
         <div class="global-search-wrapper">
             <div class="global-search">
-                <input id="global-search" type="search" placeholder="Szukaj..." aria-label="Search" autocomplete="off" />
+                <input id="global-search" type="search" placeholder="Szukaj filmów i seriali..." aria-label="Search" autocomplete="off" />
                 <ul id="search-suggestions" class="suggestions" role="listbox" aria-live="polite"></ul>
             </div>
         </div>
-        <nav>
+        <nav class="auth-nav">
             <button onclick="window.location.href='/'">❮ Wróć</button>
             <button id="login-btn">Zaloguj</button>
             <button id="logout-btn">Wyloguj</button>
         </nav>
     </header>
 
-    <div id="details-root">
-        <p style="text-align:center; padding: 50px; font-size:1.2rem;">Ładowanie danych filmu...</p>
+    <div id="details-container">
+        <p style="text-align:center; margin-top:100px; font-size:1.5rem; color:#666;">Ładowanie szczegółów...</p>
     </div>
 
     <script>

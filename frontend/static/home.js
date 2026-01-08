@@ -1,5 +1,3 @@
-// frontend/static/home.js
-
 const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -13,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (query) {
         searchMovies(query);
     } else {
-        // Domyślny start: Ładujemy trendy i zaznaczamy przycisk
+        // Domyślnie ładujemy "Na czasie"
         loadMovies('/movies/trending');
         setActiveButton('popular-btn'); 
     }
@@ -50,11 +48,10 @@ function setupButtons() {
 }
 
 function setActiveButton(btnId) {
-    // Usuń klasę active ze wszystkich przycisków w kontenerze controls
-    const buttons = document.querySelectorAll('.controls button');
-    buttons.forEach(btn => btn.classList.remove('active'));
-
-    // Dodaj do klikniętego (jeśli nie jest to przycisk rekomendacji lub ulubionych, które przenoszą na inną stronę)
+    // Resetujemy klasę active dla wszystkich przycisków w nav
+    document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
+    
+    // Ustawiamy active tylko dla wybranego
     const btn = document.getElementById(btnId);
     if(btn) btn.classList.add('active');
 }
@@ -70,7 +67,7 @@ async function loadMovies(endpoint) {
         renderMovies(data.results);
     } catch (err) {
         console.error(err);
-        container.innerHTML = '<p class="error" style="grid-column: 1/-1; text-align: center;">Nie udało się pobrać filmów. Sprawdź połączenie z backendem.</p>';
+        container.innerHTML = '<p class="error">Nie udało się pobrać filmów.</p>';
     }
 }
 
@@ -80,7 +77,7 @@ async function searchMovies(query) {
     
     try {
         const res = await fetch(`/movies/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) throw new Error("Błąd wyszukiwania");
+        if (!res.ok) throw new Error("Błąd");
         const data = await res.json();
         renderMovies(data.results);
     } catch (err) {
@@ -115,7 +112,6 @@ async function renderMovies(movies) {
         container.appendChild(card);
     });
 
-    // Listenery ulubionych
     document.querySelectorAll(".favorite-btn").forEach(btn => {
         btn.addEventListener("click", async (e) => {
             const movieId = btn.dataset.movieId;
@@ -143,7 +139,7 @@ function createMovieCard(movie, isFav) {
     div.classList.add("movie");
 
     const posterUrl = movie.poster_path 
-        ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` 
+        ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` 
         : "https://via.placeholder.com/200x300?text=Brak+Okładki";
     
     const title = movie.title || movie.name;
@@ -175,13 +171,23 @@ function createMovieCard(movie, isFav) {
     return div;
 }
 
+function setupAuthButtons() {
+    const loginBtn = document.getElementById("login-btn");
+    const logoutBtn = document.getElementById("logout-btn");
+    if (isUserLoggedIn) {
+        if (loginBtn) loginBtn.style.display = "none";
+        if (logoutBtn) { logoutBtn.style.display = "inline-block"; logoutBtn.onclick = () => window.location.href = "/auth/logout"; }
+    } else {
+        if (logoutBtn) logoutBtn.style.display = "none";
+        if (loginBtn) { loginBtn.style.display = "inline-block"; loginBtn.onclick = () => window.location.href = "/auth/login"; }
+    }
+}
+
 function setupGlobalSearch() {
     const input = document.getElementById('global-search');
     const list = document.getElementById('search-suggestions');
     if (!input || !list) return;
-
     function debounce(fn, wait = 300) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
-
     async function doSearchSuggestions(q) {
         if (!q || q.trim().length < 1) { list.classList.remove('visible'); list.innerHTML = ''; return; }
         try {
@@ -205,23 +211,4 @@ function setupGlobalSearch() {
     input.addEventListener('input', debouncedSuggest);
     input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
     input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const q = input.value.trim();
-            if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
-        }
-    });
-}
-
-function setupAuthButtons() {
-    const loginBtn = document.getElementById("login-btn");
-    const logoutBtn = document.getElementById("logout-btn");
-    if (isUserLoggedIn) {
-        if (loginBtn) loginBtn.style.display = "none";
-        if (logoutBtn) { logoutBtn.style.display = "inline-block"; logoutBtn.onclick = () => window.location.href = "/auth/logout"; }
-    } else {
-        if (logoutBtn) logoutBtn.style.display = "none";
-        if (loginBtn) { loginBtn.style.display = "inline-block"; loginBtn.onclick = () => window.location.href = "/auth/login"; }
-    }
 }

@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Twoje ulubione filmy</title>
+    <title>Twoje Ulubione</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -11,27 +11,41 @@
         
         <div class="global-search-wrapper">
             <div class="global-search">
-                <input id="global-search" type="search" placeholder="Search movies, series..." aria-label="Search movies" autocomplete="off" />
+                <input id="global-search" type="search" placeholder="Szukaj..." aria-label="Search" autocomplete="off" />
                 <ul id="search-suggestions" class="suggestions" role="listbox" aria-live="polite"></ul>
             </div>
         </div>
 
-        <nav>
+        <nav class="auth-nav">
             <button onclick="window.location.href='/'">❮ Wróć</button>
-            <button id="login-btn">Zaloguj</button>
             <button id="logout-btn">Wyloguj</button>
         </nav>
     </header>
 
-    <main class="main-content">
-        <div id="movies-container">
-            <p style="text-align: center; margin-top: 50px;">Ładowanie ulubionych...</p>
+    <main>
+        <h2 style="text-align: center; margin: 40px 0; font-size: 2rem;">Twoja Kolekcja ❤️</h2>
+        <div id="favorites-container" class="movies-grid">
+            <div class="loader">Pobieranie ulubionych...</div>
         </div>
     </main>
-    
+
     <script>
         const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
     </script>
     <script src="/static/favorites.js"></script>
+    <script>
+        // Szybki inline script do obsługi wylogowania i searcha (bo home.js tu nie ma)
+        document.getElementById('logout-btn').addEventListener('click', () => { window.location.href = "/auth/logout"; });
+        
+        // Search logic copy (minimal)
+        const input = document.getElementById('global-search');
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const q = input.value.trim();
+                if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
+            }
+        });
+    </script>
 </body>
 </html>
