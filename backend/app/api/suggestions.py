@@ -27,6 +27,7 @@ class RecFilters(BaseModel):
     runtime_max: Optional[int] = None
     country: Optional[str] = None
     preference: str = "popular"
+    mood: Optional[str] = None
     weight_genres: int = 2
 
 class RecRequest(BaseModel):
@@ -35,8 +36,16 @@ class RecRequest(BaseModel):
     use_favorites: bool = True
     filters: Optional[RecFilters] = None
 
-# --- HELPERY ---
+# --- MAPA NASTROJÓW ---
+MOOD_MAP = {
+    "laugh": [35, 16, 10751],
+    "scary": [27, 9648, 53],
+    "adrenaline": [28, 12, 10752],
+    "cry": [18, 10749],
+    "think": [99, 36, 878]
+}
 
+# ... (fetch_discover i helpers bez zmian) ...
 async def fetch_discover(client, endpoint: str, params: dict) -> List[dict]:
     results = []
     base_url = f"{settings.TMDB_BASE_URL}{endpoint}"
@@ -50,21 +59,28 @@ async def fetch_discover(client, endpoint: str, params: dict) -> List[dict]:
         except: pass
     return results
 
+# POPRAWIONY HELPER
 async def fetch_details_and_update(client, item):
     media_type = item.get("media_type", "movie")
     item_id = item.get("id")
-    url = f"{settings.TMDB_BASE_URL}/{media_type}/{item_id}"
-    params = {"api_key": API_KEY, "language": "pl-PL"}
+    # Bezpieczne pobieranie
     try:
+        url = f"{settings.TMDB_BASE_URL}/{media_type}/{item_id}"
+        params = {"api_key": API_KEY, "language": "pl-PL"}
         resp = await client.get(url, params=params)
+        
         if resp.status_code == 200:
             data = resp.json()
             if "runtime" in data:
                 item["runtime"] = data["runtime"]
             elif "episode_run_time" in data and data["episode_run_time"]:
                 item["runtime"] = data["episode_run_time"][0]
-            else: item["runtime"] = 0
-    except: item["runtime"] = 0
+            else:
+                item["runtime"] = 0
+        else:
+            item["runtime"] = 0
+    except:
+        item["runtime"] = 0
     return item
 
 def get_year_from_item(item):
@@ -79,22 +95,19 @@ def calculate_score(item, user_profile, filters: RecFilters, mode: str):
     pop = item.get("popularity", 0)
     vote = item.get("vote_average", 0)
     
-    # 1. Scoring podstawowy
     if filters.preference == "niche":
         score += (vote * 10)
-        score -= (pop / 2) # Kara za popularność
+        score -= (pop / 2)
     else:
         score += (vote * 3) + (min(pop, 200) / 10.0)
 
-    # 2. Profil Użytkownika (ZNACZNIE ZWIĘKSZONA WAGA)
     if user_profile and user_profile.get("top_genres"):
         item_genres = set(item.get("genre_ids", []))
         common = item_genres.intersection(user_profile["top_genres"])
         if common:
-            score += 5.0 # Bonus za samo trafienie w gust
-            score += len(common) * 10.0 # +10 pkt za każdy pasujący gatunek (wcześniej 5)
+            score += 5.0
+            score += len(common) * 10.0
 
-    # 3. Bonusy Manualne (z formularza)
     if mode == "advanced" and filters and filters.genres:
         item_genres = set(item.get("genre_ids", []))
         common_manual = item_genres.intersection(set(filters.genres))
@@ -127,8 +140,12 @@ async def generate_recommendations(
         user_profile["top_genres"] = {x[0] for x in Counter(all_genres).most_common(5)}
 
     preference = "popular"
+    mood_genres = []
+    
     if req.mode == "advanced" and req.filters:
         preference = req.filters.preference
+        if req.filters.mood and req.filters.mood in MOOD_MAP:
+            mood_genres = MOOD_MAP[req.filters.mood]
 
     api_params = {
         "api_key": API_KEY, "language": "pl-PL", 
@@ -137,33 +154,37 @@ async def generate_recommendations(
 
     if preference == "niche":
         api_params["sort_by"] = "vote_average.desc"
-        api_params["vote_count.gte"] = 20
-        api_params["vote_count.lte"] = 700
-        api_params["popularity.lte"] = 20
+        api_params["vote_count.gte"] = 15
+        api_params["vote_count.lte"] = 500
+        api_params["popularity.lte"] = 10
     else:
         api_params["sort_by"] = "popularity.desc"
         api_params["vote_count.gte"] = 100
 
+    final_genres = []
     if req.mode == "quick" and user_profile["top_genres"]:
-        api_params["with_genres"] = "|".join(map(str, user_profile["top_genres"]))
-
+        final_genres.extend(list(user_profile["top_genres"]))
     elif req.mode == "advanced" and req.filters:
-        f = req.filters
-        if f.genres:
-            separator = "," if f.genre_mode == "and" else "|"
-            api_params["with_genres"] = separator.join(map(str, f.genres))
-        
-        if f.year_min:
-            api_params["primary_release_date.gte"] = f"{f.year_min:04d}-01-01"
-            api_params["first_air_date.gte"] = f"{f.year_min:04d}-01-01"
-        if f.year_max:
-            api_params["primary_release_date.lte"] = f"{f.year_max:04d}-12-31"
-            api_params["first_air_date.lte"] = f"{f.year_max:04d}-12-31"
-        
-        if f.vote_min: api_params["vote_average.gte"] = f.vote_min
-        if f.country: api_params["with_origin_country"] = f.country
-        if f.runtime_min: api_params["with_runtime.gte"] = f.runtime_min
-        if f.runtime_max: api_params["with_runtime.lte"] = f.runtime_max
+        if req.filters.genres:
+            final_genres.extend(req.filters.genres)
+        if mood_genres:
+            final_genres.extend(mood_genres)
+            
+        if req.filters.year_min:
+            api_params["primary_release_date.gte"] = f"{req.filters.year_min:04d}-01-01"
+            api_params["first_air_date.gte"] = f"{req.filters.year_min:04d}-01-01"
+        if req.filters.year_max:
+            api_params["primary_release_date.lte"] = f"{req.filters.year_max:04d}-12-31"
+            api_params["first_air_date.lte"] = f"{req.filters.year_max:04d}-12-31"
+        if req.filters.vote_min: api_params["vote_average.gte"] = req.filters.vote_min
+        if req.filters.country: api_params["with_origin_country"] = req.filters.country
+        if req.filters.runtime_min: api_params["with_runtime.gte"] = req.filters.runtime_min
+        if req.filters.runtime_max: api_params["with_runtime.lte"] = req.filters.runtime_max
+
+    if final_genres:
+        unique_genres = list(set(final_genres))
+        separator = "," if (req.filters and req.filters.genre_mode == "and" and not mood_genres) else "|"
+        api_params["with_genres"] = separator.join(map(str, unique_genres))
 
     candidates = []
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -204,8 +225,10 @@ async def generate_recommendations(
             if filters.year_max and item_year > filters.year_max: continue
             if filters.vote_min and item.get("vote_average", 0) < filters.vote_min: continue
             
+            item_genres = set(item.get("genre_ids", []))
+            if mood_genres:
+                if not set(mood_genres).intersection(item_genres): continue
             if filters.genres and filters.genre_mode == "and":
-                item_genres = set(item.get("genre_ids", []))
                 if not set(filters.genres).issubset(item_genres): continue
 
         seen_ids.add(mid)
@@ -227,6 +250,7 @@ async def generate_recommendations(
 
     final_results = []
     async with httpx.AsyncClient(timeout=10.0) as client:
+        # POBIERAMY DETALE
         tasks = [fetch_details_and_update(client, item[1]) for item in final_list_raw]
         updated_items = await asyncio.gather(*tasks)
         
@@ -239,7 +263,7 @@ async def generate_recommendations(
                 "vote_average": item.get("vote_average"),
                 "release_date": item.get("release_date") or item.get("first_air_date"),
                 "media_type": item.get("media_type"),
-                "runtime": item.get("runtime", 0)
+                "runtime": item.get("runtime", 0) # Bezpieczny runtime
             })
 
     return {"results": final_results}

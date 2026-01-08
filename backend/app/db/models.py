@@ -21,6 +21,7 @@ class FavoriteMovie(Base):
     popularity = Column(Float, default=0.0)       # Trend
     runtime = Column(Integer, default=0)          # Minuty (film) lub śr. odcinka (tv)
     original_language = Column(String, nullable=True) 
+    runtime = Column(Integer, default=0)
 
     # Pola JSON (przechowywane jako String)
     genres_json = Column(String, default="[]")    # Gatunki

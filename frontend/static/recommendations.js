@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupGlobalSearch();
 });
 
-// ... Walidacja formularza bez zmian ...
+// Walidacja formularza
 function validateForm() {
     if (window.currentMode !== 'advanced') {
         document.getElementById('gen-btn').disabled = false;
@@ -83,7 +83,8 @@ async function generate() {
                 runtime_min: getVal('runtime-min'),
                 runtime_max: getVal('runtime-max'),
                 country: getString('country-select'),
-                preference: getString('pref-select')
+                preference: getString('pref-select'),
+                mood: getString('mood-select')
             };
         }
 
@@ -124,19 +125,14 @@ async function renderResults(movies, container) {
         container.innerHTML = "<h3 style='text-align:center; margin-top:40px; color:#fff;'>Brak wyników :(</h3>";
         return;
     }
-    // WAŻNE: Dodajemy klasę movies-grid, aby style z CSS zadziałały
+    // WAŻNE: Dodajemy klasę movies-grid dla styli
     container.innerHTML = `<div class="movies-grid"></div>`;
     const grid = container.querySelector('.movies-grid');
     const favIds = await fetchUserFavoritesIds();
 
-    movies.forEach((f, index) => {
+    movies.forEach(f => {
         const isFav = favIds.includes(f.id);
         const card = createMovieCard(f, isFav);
-        
-        // Animacja kaskadowa (inline style działa z CSS transition)
-        card.style.opacity = '0';
-        card.style.animation = `fadeInUp 0.5s forwards ${index * 0.05}s`;
-        
         grid.appendChild(card);
     });
 
@@ -161,7 +157,6 @@ async function renderResults(movies, container) {
     });
 }
 
-// Funkcja IDENTYCZNA jak w home.js dla spójnego wyglądu
 function createMovieCard(movie, isFav) {
     const div = document.createElement("div");
     div.classList.add("movie");
@@ -178,7 +173,17 @@ function createMovieCard(movie, isFav) {
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
     const mediaType = movie.media_type || (movie.title ? "movie" : "tv"); 
 
-    // Używamy struktury HTML zgodnej z styles.css (.movie, .movie-rating-box)
+    // CZAS TRWANIA - Logika "?" i pozycja
+    let runtimeHtml;
+    if (movie.runtime && movie.runtime > 0) {
+        const h = Math.floor(movie.runtime / 60);
+        const m = movie.runtime % 60;
+        const timeStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
+        runtimeHtml = `<div style="font-size:0.85rem; color:#888; margin-bottom:5px;">⏱ ${timeStr}</div>`;
+    } else {
+        runtimeHtml = `<div style="font-size:0.85rem; color:#888; margin-bottom:5px;">⏱ ?</div>`;
+    }
+
     div.innerHTML = `
         <a href="/details.html?id=${movie.id}&type=${mediaType}" style="text-decoration: none; color: inherit; width: 100%;">
             <img src="${posterUrl}" alt="${title}" loading="lazy">
@@ -186,9 +191,11 @@ function createMovieCard(movie, isFav) {
         </a>
         
         <div class="movie-rating-box">
+            ${runtimeHtml}
+            
             <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                 <span>Ocena: ${rating}</span>
-                <span style="color: gold;">★</span>
+                <span style="color: #ffcc00;">★</span>
             </div>
             <div class="rating-bar">
                 <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
@@ -200,7 +207,7 @@ function createMovieCard(movie, isFav) {
     return div;
 }
 
-// ... Helpery (Auth, Search) bez zmian ...
+// ... helpery bez zmian ...
 function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");
@@ -240,9 +247,6 @@ function setupGlobalSearch() {
     const debouncedSuggest = debounce(e => doSearchSuggestions(e.target.value), 250);
     input.addEventListener('input', debouncedSuggest);
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); const q = input.value.trim(); if (q) window.location.href = `/?q=${encodeURIComponent(q)}`; } 
-        else if (e.key === 'Escape') list.classList.remove('visible');
+        if (e.key === 'Enter') { e.preventDefault(); const q = input.value.trim(); if (q) window.location.href = `/?q=${encodeURIComponent(q)}`; }
     });
-    input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
-    input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
 }
