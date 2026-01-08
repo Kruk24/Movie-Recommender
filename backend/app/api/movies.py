@@ -10,6 +10,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/movies")
 
 API_KEY = os.getenv("TMDB_API_KEY") or settings.TMDB_API_KEY
+BASE_URL = settings.TMDB_BASE_URL
 
 # --- HELPERY ---
 def filter_results(items: List[dict]) -> List[dict]:
@@ -38,8 +39,26 @@ async def top_movies(category: str):
     # Filtrujemy wyniki bez głosów
     results = filter_results(data.get("results", []))
     
-    top10 = results[:10]
+    top10 = results[:14]
     return JSONResponse({"top10": top10})
+
+
+@router.get("/trending")
+async def get_trending(limit: int = 14): # Domyślnie 14
+    async with httpx.AsyncClient() as client:
+        # Pobieramy trendy tygodnia
+        url = f"{BASE_URL}/trending/movie/week"
+        params = {"api_key": API_KEY, "language": "pl-PL"}
+        response = await client.get(url, params=params)
+        
+        if response.status_code != 200:
+            return {"results": []}
+            
+        data = response.json()
+        results = data.get("results", [])
+        
+        # Ograniczamy liczbę wyników zgodnie z życzeniem
+        return {"results": results[:limit]}
 
 
 @router.get("/search")
@@ -108,67 +127,57 @@ async def search_movies(q: str, limit: int = 10):
 
 
 @router.get("/details/{media_type}/{tmdb_id}")
-async def get_movie_details(media_type: str, tmdb_id: int):
+async def get_details(media_type: str, tmdb_id: int):
+    # Zabezpieczenie typu
     if media_type not in ["movie", "tv"]:
         media_type = "movie"
 
-    url = f"{settings.TMDB_BASE_URL}/{media_type}/{tmdb_id}"
-    params = {
-        "api_key": API_KEY,
-        "language": "pl-PL",
-        "append_to_response": "credits,watch/providers"
-    }
+    async with httpx.AsyncClient() as client:
+        url = f"{BASE_URL}/{media_type}/{tmdb_id}"
+        # Pobieramy dodatkowe dane w jednym strzale
+        params = {"api_key": API_KEY, "language": "pl-PL", "append_to_response": "credits,watch/providers,keywords"}
+        
+        response = await client.get(url, params=params)
+        if response.status_code != 200:
+            raise HTTPException(status_code=404, detail="Movie not found")
+        
+        data = response.json()
+        
+        # Ekstrakcja danych - bezpieczna, z obsługą błędów
+        directors = []
+        if media_type == "movie":
+            crew = data.get("credits", {}).get("crew", [])
+            directors = [m for m in crew if m.get("job") == "Director"]
+        else:
+            directors = data.get("created_by", [])
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(url, params=params)
+        # Ekstrakcja providerów (bezpieczniejsza)
+        providers = []
+        try:
+            # TMDB zwraca zagnieżdżoną strukturę dla providerów
+            results = data.get("watch/providers", {}).get("results", {})
+            pl_providers = results.get("PL", {})
+            if pl_providers:
+                # Interesuje nas zazwyczaj flatrate (abonament)
+                providers = pl_providers.get("flatrate", [])
+        except:
+            providers = []
 
-    if resp.status_code != 200:
-        return JSONResponse({"error": "Not found"}, status_code=404)
-
-    data = resp.json()
-
-    # Parsowanie Reżysera
-    directors = []
-    if media_type == "movie":
-        crew = data.get("credits", {}).get("crew", [])
-        directors = [p["name"] for p in crew if p.get("job") == "Director"]
-    else:
-        created_by = data.get("created_by", [])
-        directors = [p["name"] for p in created_by]
-
-    # Parsowanie Obsady
-    cast = []
-    for actor in data.get("credits", {}).get("cast", [])[:6]:
-        cast.append({
-            "name": actor.get("name"),
-            "character": actor.get("character"),
-            "profile_path": actor.get("profile_path")
-        })
-
-    # Parsowanie Streamingu
-    providers_data = data.get("watch/providers", {}).get("results", {}).get("PL", {})
-    streaming = []
-    for prov in providers_data.get("flatrate", []):
-        streaming.append({
-            "name": prov.get("provider_name"),
-            "logo_path": prov.get("logo_path")
-        })
-
-    title = data.get("title") or data.get("name")
-    release_date = data.get("release_date") or data.get("first_air_date")
-
-    return {
-        "id": data.get("id"),
-        "title": title,
-        "overview": data.get("overview"),
-        "release_date": release_date,
-        "poster_path": data.get("poster_path"),
-        # Zabezpieczenie: jeśli null to 0.0
-        "vote_average": data.get("vote_average") or 0.0,
-        "genres": [g["name"] for g in data.get("genres", [])],
-        "production_countries": [c["name"] for c in data.get("production_countries", [])],
-        "directors": directors,
-        "cast": cast,
-        "watch_providers": streaming,
-        "media_type": media_type
-    }
+        return {
+            "id": data.get("id"),
+            "title": data.get("title") or data.get("name"),
+            "overview": data.get("overview"),
+            "poster_path": data.get("poster_path"),
+            "backdrop_path": data.get("backdrop_path"),
+            "release_date": data.get("release_date") or data.get("first_air_date"),
+            "vote_average": data.get("vote_average"),
+            "vote_count": data.get("vote_count"),
+            "genres": data.get("genres", []),
+            "runtime": data.get("runtime"),
+            "episode_run_time": data.get("episode_run_time", []),
+            "production_countries": data.get("production_countries", []),
+            "media_type": media_type,
+            "cast": data.get("credits", {}).get("cast", [])[:12],
+            "directors": directors,
+            "watch_providers": providers
+        }

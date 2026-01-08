@@ -1,331 +1,227 @@
-console.log("--> HOME.JS ZAŁADOWANY");
+// frontend/static/home.js
+
+const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
+
+document.addEventListener("DOMContentLoaded", () => {
+    setupButtons();
+    setupAuthButtons();
+    setupGlobalSearch();
+    
+    const params = new URLSearchParams(window.location.search);
+    const query = params.get("q");
+
+    if (query) {
+        searchMovies(query);
+    } else {
+        // Domyślny start: Ładujemy trendy i zaznaczamy przycisk
+        loadMovies('/movies/trending');
+        setActiveButton('popular-btn'); 
+    }
+});
+
+function setupButtons() {
+    const popBtn = document.getElementById("popular-btn");
+    const topBtn = document.getElementById("toprated-btn");
+    const favBtn = document.getElementById("favorites-btn");
+
+    if(popBtn) {
+        popBtn.addEventListener("click", () => {
+            loadMovies('/movies/trending');
+            setActiveButton('popular-btn');
+        });
+    }
+
+    if(topBtn) {
+        topBtn.addEventListener("click", () => {
+            loadMovies('/movies/top_rated');
+            setActiveButton('toprated-btn');
+        });
+    }
+
+    if(favBtn) {
+        favBtn.addEventListener("click", () => {
+            if(!isUserLoggedIn) {
+                window.location.href = "/auth/login";
+            } else {
+                window.location.href = "/user/favorites";
+            }
+        });
+    }
+}
+
+function setActiveButton(btnId) {
+    // Usuń klasę active ze wszystkich przycisków w kontenerze controls
+    const buttons = document.querySelectorAll('.controls button');
+    buttons.forEach(btn => btn.classList.remove('active'));
+
+    // Dodaj do klikniętego (jeśli nie jest to przycisk rekomendacji lub ulubionych, które przenoszą na inną stronę)
+    const btn = document.getElementById(btnId);
+    if(btn) btn.classList.add('active');
+}
+
+async function loadMovies(endpoint) {
+    const container = document.getElementById("movies-container");
+    container.innerHTML = '<div class="loader">Ładowanie filmów...</div>';
+
+    try {
+        const res = await fetch(endpoint);
+        if (!res.ok) throw new Error("Błąd sieci");
+        const data = await res.json();
+        renderMovies(data.results);
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p class="error" style="grid-column: 1/-1; text-align: center;">Nie udało się pobrać filmów. Sprawdź połączenie z backendem.</p>';
+    }
+}
+
+async function searchMovies(query) {
+    const container = document.getElementById("movies-container");
+    container.innerHTML = '<div class="loader">Szukam...</div>';
+    
+    try {
+        const res = await fetch(`/movies/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error("Błąd wyszukiwania");
+        const data = await res.json();
+        renderMovies(data.results);
+    } catch (err) {
+        container.innerHTML = '<p class="error">Błąd wyszukiwania.</p>';
+    }
+}
 
 async function fetchUserFavoritesIds() {
     if (!isUserLoggedIn) return [];
     try {
         const res = await fetch("/user/favorites.json", { credentials: "same-origin" });
-        if (!res.ok) return []; // Cicha obsługa braku endpointu
+        if (!res.ok) return [];
         const j = await res.json();
         return (j.favorites || []).map(f => f.id);
-    } catch (err) {
-        console.warn("Brak obsługi ulubionych lub błąd sieci:", err);
-        return [];
-    }
+    } catch (err) { return []; }
 }
 
-function createMovieCard(f, isFav) {
-    const posterUrl = f.poster_path ? `https://image.tmdb.org/t/p/w200${f.poster_path}` : (f.poster || "https://via.placeholder.com/150");
+async function renderMovies(movies) {
+    const container = document.getElementById("movies-container");
+    
+    if (!movies || movies.length === 0) {
+        container.innerHTML = "<p style='grid-column: 1/-1; text-align: center;'>Brak wyników.</p>";
+        return;
+    }
+
+    const favIds = await fetchUserFavoritesIds();
+    container.innerHTML = ""; 
+    
+    movies.forEach(movie => {
+        const isFav = favIds.includes(movie.id);
+        const card = createMovieCard(movie, isFav);
+        container.appendChild(card);
+    });
+
+    // Listenery ulubionych
+    document.querySelectorAll(".favorite-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            const movieId = btn.dataset.movieId;
+            if(!movieId) return;
+            if(!isUserLoggedIn) { window.location.href = "/auth/login"; return; }
+
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "...";
+
+            try {
+                const res = await fetch(`/user/favorite/${movieId}`, { method: "POST", credentials: "same-origin" });
+                if(res.ok) {
+                    const data = await res.json();
+                    btn.textContent = data.added ? "Usuń z ulubionych" : "Dodaj do ulubionych";
+                } else { btn.textContent = originalText; }
+            } catch (err) { btn.textContent = originalText; } 
+            finally { btn.disabled = false; }
+        });
+    });
+}
+
+function createMovieCard(movie, isFav) {
     const div = document.createElement("div");
-    div.classList.add("movie"); // Klasa z CSS
+    div.classList.add("movie");
 
+    const posterUrl = movie.poster_path 
+        ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` 
+        : "https://via.placeholder.com/200x300?text=Brak+Okładki";
+    
+    const title = movie.title || movie.name;
+    const releaseDate = movie.release_date || movie.first_air_date || "";
+    const year = releaseDate ? `(${releaseDate.slice(0, 4)})` : "";
+    const rating = movie.vote_average ? movie.vote_average.toFixed(1) : "—";
+    const ratingPercent = Math.min(Math.max((movie.vote_average || 0) * 10, 0), 100);
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
-    const btnAttr = f.id ? `data-movie-id="${f.id}"` : "";
-    
-    // Rok produkcji
-    const release_year = (f.release_date || f.first_air_date || "").slice(0, 4) || "—";
-
-    // Ocena i pasek
-    const rawRating = f.vote_average ?? (f.rating ?? 0);
-    const ratingText = rawRating ? rawRating.toFixed(1) : "0.0";
-    
-    // Obliczamy procent zapełnienia paska (np. ocena 6.7 * 10 = 67%)
-    const ratingPercent = Math.min(Math.max(rawRating * 10, 0), 100);
-
-    const type = f.media_type || "movie"; 
-
-    // Tworzymy link do details.html
-    const detailsUrl = `/details.html?id=${f.id}&type=${type}`;
+    const mediaType = movie.media_type || (movie.title ? "movie" : "tv"); 
 
     div.innerHTML = `
-        <a href="${detailsUrl}" style="text-decoration: none; color: inherit; width: 100%;">
-            <h3>${f.title || f.name} (${release_year})</h3>
-        </a>
-
-        <a href="${detailsUrl}">
-            <img src="${posterUrl}" alt="${f.title || f.name}">
+        <a href="/details.html?id=${movie.id}&type=${mediaType}" style="text-decoration: none; color: inherit; width: 100%;">
+            <img src="${posterUrl}" alt="${title}" loading="lazy">
+            <h3>${title} <small>${year}</small></h3>
         </a>
         
         <div class="movie-rating-box">
-             <p style="margin: 0; display: flex; align-items: center; gap: 5px;">
-                Ocena: ${ratingText}
-                <span style="color: #f5c518; font-size: 1.2em;">★</span>
-            </p>
+            <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                <span>Ocena: ${rating}</span>
+                <span style="color: gold;">★</span>
+            </div>
             <div class="rating-bar">
                 <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
             </div>
         </div>
 
-        <button class="favorite-btn" ${btnAttr}>${btnText}</button>
+        <button class="favorite-btn" data-movie-id="${movie.id}">${btnText}</button>
     `;
     return div;
 }
 
-const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
-
-async function renderMovies(movies, targetElement) {
-    if (!targetElement) return;
-    
-    // Czyścimy tylko wskazany element (siatkę), a nie cały kontener strony
-    targetElement.innerHTML = "";
-
-    const favIds = await fetchUserFavoritesIds();
-
-    movies.forEach(f => {
-        if (!f || (!f.id && !f.title && !f.name)) return;
-        const isFav = favIds.includes(f.id);
-        const card = createMovieCard(f, isFav);
-        targetElement.appendChild(card);
-    });
-
-    // Listenery podpinamy do przycisków wewnątrz targetElement
-    targetElement.querySelectorAll(".favorite-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
-            const movieId = btn.dataset.movieId;
-            if (!movieId) return;
-            
-            if (!isUserLoggedIn) {
-                window.location.href = "/auth/login";
-                return;
-            }
-            try {
-                const res = await fetch(`/user/favorite/${movieId}`, {
-                    method: "POST",
-                    credentials: "same-origin"
-                });
-                if (!res.ok) {
-                    console.error("toggle favorite failed", await res.text());
-                    return;
-                }
-                const data = await res.json();
-                if (data.removed) btn.textContent = "Dodaj do ulubionych";
-                else btn.textContent = "Usuń z ulubionych";
-            } catch (err) {
-                console.error("toggle favorite error", err);
-            }
-        });
-    });
-}
-
-function prepareView(mainContainer, headingText = null) {
-    mainContainer.innerHTML = ""; // Czyścimy wszystko
-    
-    if (headingText) {
-        const h2 = document.createElement("h2");
-        h2.textContent = headingText;
-        mainContainer.appendChild(h2);
-    }
-
-    // Tworzymy div z klasą .movies-grid (zdefiniowaną w CSS)
-    const grid = document.createElement("div");
-    grid.classList.add("movies-grid");
-    mainContainer.appendChild(grid);
-    
-    return grid;
-}
-
-// Debounce helper
-function debounce(fn, wait = 300) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
-  };
-}
-
 function setupGlobalSearch() {
-  const input = document.getElementById('global-search');
-  const list = document.getElementById('search-suggestions');
+    const input = document.getElementById('global-search');
+    const list = document.getElementById('search-suggestions');
+    if (!input || !list) return;
 
-  console.log("Status Search Bara:", {
-      inputElement: input,
-      listElement: list,
-      znalezionoWszystko: !!(input && list)
-  });
+    function debounce(fn, wait = 300) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
 
-  if (!input || !list){
-    console.warn("PRZERYWAM: Nie znaleziono inputa (#global-search) lub listy (#search-suggestions) w HTML!");
-    return;
-  }
-
-  async function doSearch(q) {
-    if (!q || q.trim().length < 1) {
-      list.classList.remove('visible');
-      list.innerHTML = '';
-      return;
+    async function doSearchSuggestions(q) {
+        if (!q || q.trim().length < 1) { list.classList.remove('visible'); list.innerHTML = ''; return; }
+        try {
+            const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=6`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const hits = data.results || [];
+            list.innerHTML = '';
+            if (!hits.length) { list.classList.remove('visible'); return; }
+            hits.slice(0,6).forEach(item => {
+                const li = document.createElement('li');
+                const year = (item.release_date || item.first_air_date || '').slice(0,4);
+                li.textContent = `${item.title || item.name} ${year ? '('+year+')' : ''}`;
+                li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`);
+                list.appendChild(li);
+            });
+            list.classList.add('visible');
+        } catch (e) {}
     }
-    try {
-      const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=6`);
-      if (!res.ok) throw new Error('search failed');
-      const data = await res.json();
-      const hits = (data && Array.isArray(data.results)) ? data.results : [];
-
-      list.innerHTML = '';
-      if (!hits.length) {
-        list.classList.remove('visible');
-        return;
-      }
-
-      hits.slice(0,6).forEach(item => {
-        const li = document.createElement('li');
-        const year = (item.release_date || item.first_air_date || '').slice(0,4);
-        li.textContent = item.title + (year ? ` (${year})` : '');
-        
-        li.addEventListener('click', async () => {
-          // 1. Uzupełnij input nazwą (dla estetyki)
-          input.value = item.title;
-          // 2. Schowaj listę
-          list.classList.remove('visible');
-          
-          // 3. Zamiast przeładowywać stronę i szukać tekstem, 
-          // OD RAZU renderujemy ten konkretny obiekt, który mamy w pamięci.
-          const container = document.getElementById('movies-container');
-          if (container) {
-             // Używamy Twojej funkcji prepareView
-             const grid = prepareView(container, `Wybrany wynik: "${item.title}"`);
-             // Przekazujemy tablicę z tym jednym filmem do renderMovies
-             await renderMovies([item], grid);
-          }
-        });
-        list.appendChild(li);
-      });
-      list.classList.add('visible');
-    } catch (err) {
-      console.error(err);
-      list.classList.remove('visible');
-    }
-  }
-
-  const debouncedSearch = debounce(e => doSearch(e.target.value), 250);
-
-  input.addEventListener('input', debouncedSearch);
-
-  // on focus: if there's a query, show matching suggestions; otherwise show top popular suggestions
-  input.addEventListener('focus', async () => {
-    const q = input.value && input.value.trim();
-    if (q) return doSearch(q);
-
-    try {
-      const res = await fetch('/movies/top/popular');
-      if (!res.ok) return;
-      const d = await res.json();
-      const hits = d.top10 || d.results || [];
-      list.innerHTML = '';
-      hits.slice(0,6).forEach(item => {
-        const li = document.createElement('li');
-        const title = item.title || item.name;
-        const year = (item.release_date || '').slice(0,4) || (item.first_air_date || '').slice(0,4) || '';
-        li.textContent = title + (year ? ` (${year})` : '');
-        li.dataset.query = title;
-        li.dataset.tmdb = item.id;
-        li.setAttribute('role', 'option');
-        li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(title)}`);
-        list.appendChild(li);
-      });
-      if (hits.length) list.classList.add('visible');
-    } catch (err) {
-      // ignore
-    }
-  });
-
-  input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (!q) return;
-
-      list.classList.remove('visible');
-
-      try {
-        const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
-        if (!res.ok) throw new Error('search failed');
-        const data = await res.json();
-        const hits = (data && Array.isArray(data.results)) ? data.results : [];
-        
-        const container = document.getElementById('movies-container');
-        if (container) {
-          // Tutaj używamy nowej logiki: najpierw przygotuj widok, potem renderuj
-          if (hits.length === 0) {
-             container.innerHTML = `<h2>Wyniki wyszukiwania dla "${escapeHtml(q)}"</h2><p>Brak wyników.</p>`;
-          } else {
-             // Tworzy H2 i Grid, zwraca Grid
-             const grid = prepareView(container, `Wyniki wyszukiwania dla "${escapeHtml(q)}" (${hits.length})`);
-             await renderMovies(hits, grid);
-          }
+    const debouncedSuggest = debounce(e => doSearchSuggestions(e.target.value), 250);
+    input.addEventListener('input', debouncedSuggest);
+    input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
+    input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const q = input.value.trim();
+            if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
         }
-      } catch (err) {
-          console.error('Search query failed', err);
-      }
-    } else if (e.key === 'Escape') {
-      list.classList.remove('visible');
-    }
-  });
-
-  input.addEventListener('blur', () => {
-    setTimeout(() => list.classList.remove('visible'), 150);
-  });
+    });
 }
 
-// eventy UI
-document.addEventListener("DOMContentLoaded", () => {
-  // initialize global search behaviors
-  setupGlobalSearch();
-
-  const container = document.getElementById("movies-container");
-
-    document.getElementById("favorites-btn").addEventListener("click", () => window.location.href = "/user/favorites");
-
-    document.getElementById("popular-btn").addEventListener("click", async () => {
-        const res = await fetch("/movies/top/popular");
-        const d = await res.json();
-        const grid = prepareView(container, "Popularne filmy i seriale");
-        await renderMovies(d.top10 || d.results || [], grid);
-    });
-    document.getElementById("toprated-btn").addEventListener("click", async () => {
-        const res = await fetch("/movies/top/top_rated");
-        const d = await res.json();
-        const grid = prepareView(container, "Najlepiej oceniane");
-        await renderMovies(d.top10 || d.results || [], grid);
-    });
-
-    // login/logout button visibility
+function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");
-    if (loggedIn) {
+    if (isUserLoggedIn) {
         if (loginBtn) loginBtn.style.display = "none";
         if (logoutBtn) { logoutBtn.style.display = "inline-block"; logoutBtn.onclick = () => window.location.href = "/auth/logout"; }
     } else {
         if (logoutBtn) logoutBtn.style.display = "none";
         if (loginBtn) { loginBtn.style.display = "inline-block"; loginBtn.onclick = () => window.location.href = "/auth/login"; }
     }
-
-        // If the page was loaded with a search query (?q=...), perform the search and render results
-        (async function performQueryParamSearch() {
-        const params = new URLSearchParams(window.location.search);
-        const q = params.get('q');
-        if (!q || !q.trim()) return;
-
-        const input = document.getElementById('global-search');
-        if (input) input.value = q;
-
-        try {
-            const res = await fetch(`/movies/search?q=${encodeURIComponent(q)}&limit=20`);
-            const data = await res.json();
-            const hits = data.results || [];
-            const container = document.getElementById('movies-container');
-            
-            if (container) {
-                // TUTAJ BYŁ BŁĄD: brakowało 'grid' jako drugiego argumentu
-                const grid = prepareView(container, `Wyniki wyszukiwania dla "${q}" (${hits.length})`);
-                if (hits.length === 0) {
-                    container.insertAdjacentHTML('beforeend', '<p>Brak wyników spełniających kryteria.</p>');
-                } else {
-                    await renderMovies(hits, grid); // Teraz przekazujemy grid!
-                }
-            }
-        } catch (err) { console.error(err); }
-    })();
-});
-
-      function escapeHtml(str) {
-        return String(str).replace(/[&<>"'`]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","`":"&#96;"})[s]);
-      }
+}

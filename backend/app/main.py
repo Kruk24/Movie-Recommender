@@ -15,7 +15,7 @@ from app.db import models
 from app.api import auth, user, movies, home
 from app.routes import tmdb_auth
 
-from app.api import recommendations
+from app.api import suggestions
 
 # --- LIFESPAN ---
 @asynccontextmanager
@@ -41,7 +41,7 @@ app.include_router(user.router)
 app.include_router(movies.router)
 app.include_router(home.router)
 app.include_router(tmdb_auth.router)
-app.include_router(recommendations.router)
+app.include_router(suggestions.router)
 
 # Pliki statyczne
 app.mount("/static", StaticFiles(directory="../frontend/static"), name="static")

@@ -1,49 +1,92 @@
-// /static/recommendations.js
+// static/recommendations.js
 
 const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
 
 document.addEventListener("DOMContentLoaded", () => {
     setupAuthButtons();
-    setupGlobalSearch(); // Uruchamiamy wyszukiwarkę w nagłówku
+    setupGlobalSearch();
 });
+
+function validateForm() {
+    if (window.currentMode !== 'advanced') {
+        document.getElementById('gen-btn').disabled = false;
+        document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+        return;
+    }
+    let isValid = true;
+    const btn = document.getElementById('gen-btn');
+    const getVal = (id) => parseFloat(document.getElementById(id).value);
+
+    const yMin = getVal('year-min');
+    const yMax = getVal('year-max');
+    const yErr = document.getElementById('year-error');
+    if (!isNaN(yMin) && !isNaN(yMax) && yMax < yMin) {
+        yErr.style.display = 'block'; isValid = false;
+    } else { yErr.style.display = 'none'; }
+
+    const vMin = getVal('vote-min');
+    const vErr = document.getElementById('vote-error');
+    if (!isNaN(vMin) && (vMin < 0 || vMin > 10)) {
+        vErr.style.display = 'block'; isValid = false;
+    } else { vErr.style.display = 'none'; }
+
+    const rMin = getVal('runtime-min');
+    const rMax = getVal('runtime-max');
+    const rErr = document.getElementById('runtime-error');
+    if (!isNaN(rMin) && !isNaN(rMax) && rMax < rMin) {
+        rErr.style.display = 'block'; isValid = false;
+    } else { rErr.style.display = 'none'; }
+
+    btn.disabled = !isValid;
+}
 
 async function generate() {
     const btn = document.querySelector('.big-btn');
     const container = document.getElementById('results-area');
     
     btn.disabled = true;
-    btn.textContent = "Myślę...";
-    container.innerHTML = "<p style='text-align:center;'>Przeszukuję bazę danych i API...</p>";
-
-    // Zbieranie danych
-    const mode = window.currentMode || 'quick';
-    const target = document.querySelector('input[name="target"]:checked').value;
-    
-    let payload = {
-        mode: mode,
-        target_type: target,
-        use_favorites: true
-    };
-
-    if (mode === 'advanced') {
-        payload.use_favorites = document.getElementById('use-fav').checked;
-        
-        const genreVal = document.getElementById('genre-select').value;
-        const genres = genreVal ? [parseInt(genreVal)] : [];
-
-        payload.filters = {
-            genres: genres,
-            year_min: parseInt(document.getElementById('year-min').value) || null,
-            year_max: parseInt(document.getElementById('year-max').value) || null,
-            vote_min: parseFloat(document.getElementById('vote-min').value) || null,
-            
-            weight_genres: parseInt(document.getElementById('w-genre').value),
-            weight_years: parseInt(document.getElementById('w-year').value),
-            weight_vote: parseInt(document.getElementById('w-vote').value)
-        };
-    }
+    btn.textContent = "Analizuję (to chwilę potrwa)...";
+    // Nowy, ładniejszy loader
+    container.innerHTML = "<div class='loader-text'>🔍 Przeszukuję bazę danych...</div>";
 
     try {
+        const mode = window.currentMode || 'quick';
+        const targetInput = document.querySelector('input[name="target"]:checked');
+        if (!targetInput) throw new Error("Nie wybrano typu");
+        const target = targetInput.value;
+        
+        let payload = {
+            mode: mode,
+            target_type: target,
+            use_favorites: true
+        };
+
+        if (mode === 'advanced') {
+            const useFavEl = document.getElementById('use-fav');
+            payload.use_favorites = useFavEl ? useFavEl.checked : true;
+            
+            const checkedBoxes = document.querySelectorAll('input[name="genre"]:checked');
+            const genresList = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+            const genreModeInput = document.querySelector('input[name="genre-mode"]:checked');
+            const genreMode = genreModeInput ? genreModeInput.value : 'or';
+
+            const getVal = (id) => { const el = document.getElementById(id); return el ? (parseInt(el.value) || null) : null; };
+            const getFloat = (id) => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || null) : null; };
+            const getString = (id) => { const el = document.getElementById(id); return (el && el.value) ? el.value : null; };
+
+            payload.filters = {
+                genres: genresList,
+                genre_mode: genreMode,
+                year_min: getVal('year-min'),
+                year_max: getVal('year-max'),
+                vote_min: getFloat('vote-min'),
+                runtime_min: getVal('runtime-min'),
+                runtime_max: getVal('runtime-max'),
+                country: getString('country-select'),
+                preference: getString('pref-select')
+            };
+        }
+
         const res = await fetch('/recommendations/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -51,20 +94,20 @@ async function generate() {
         });
 
         if (!res.ok) throw new Error("Błąd serwera");
-        
         const data = await res.json();
         await renderResults(data.results, container);
 
     } catch (err) {
         console.error(err);
-        container.innerHTML = `<p style='color:red; text-align:center;'>Wystąpił błąd: ${err.message}</p>`;
+        container.innerHTML = `<p style='color:red; text-align:center; margin-top: 20px; font-size:1.2rem;'>Wystąpił błąd: ${err.message}</p>`;
     } finally {
-        btn.disabled = false;
+        validateForm(); 
+        if (!document.getElementById('year-error').style.display || document.getElementById('year-error').style.display === 'none') {
+             btn.disabled = false;
+        }
         btn.textContent = "Generuj Rekomendacje 🎲";
     }
 }
-
-// --- Funkcje pomocnicze UI (skopiowane z home.js/favorites.js dla spójności) ---
 
 async function fetchUserFavoritesIds() {
     if (!isUserLoggedIn) return [];
@@ -78,24 +121,24 @@ async function fetchUserFavoritesIds() {
 
 async function renderResults(movies, container) {
     if (!movies || movies.length === 0) {
-        container.innerHTML = "<h3>Brak wyników :( Spróbuj zmienić filtry.</h3>";
+        container.innerHTML = "<h3 style='text-align:center; margin-top:40px; color:#fff;'>Brak wyników :(</h3>";
         return;
     }
-
-    // Tworzymy grid
     container.innerHTML = `<div class="movies-grid"></div>`;
     const grid = container.querySelector('.movies-grid');
-
-    // Pobieramy ulubione, żeby poprawnie oznaczyć przyciski
     const favIds = await fetchUserFavoritesIds();
 
-    movies.forEach(f => {
+    movies.forEach((f, index) => {
         const isFav = favIds.includes(f.id);
         const card = createMovieCard(f, isFav);
+        
+        // --- ANIMACJA: KASKADOWE WEJŚCIE ---
+        // Dodajemy opóźnienie animacji dla każdego kolejnego kafelka
+        card.style.animationDelay = `${index * 50}ms`; 
+        
         grid.appendChild(card);
     });
 
-    // Aktywujemy przyciski "Dodaj do ulubionych"
     grid.querySelectorAll(".favorite-btn").forEach(btn => {
         btn.addEventListener("click", async () => {
             const movieId = btn.dataset.movieId;
@@ -104,16 +147,14 @@ async function renderResults(movies, container) {
             
             const originalText = btn.textContent;
             btn.disabled = true;
-
+            btn.textContent = "...";
             try {
                 const res = await fetch(`/user/favorite/${movieId}`, { method: "POST", credentials: "same-origin" });
                 if (res.ok) {
                     const data = await res.json();
                     btn.textContent = data.removed ? "Dodaj do ulubionych" : "Usuń z ulubionych";
-                } else {
-                    btn.textContent = originalText;
-                }
-            } catch (err) { console.error(err); btn.textContent = originalText; }
+                } else { btn.textContent = originalText; }
+            } catch (err) { btn.textContent = originalText; }
             finally { btn.disabled = false; }
         });
     });
@@ -121,34 +162,35 @@ async function renderResults(movies, container) {
 
 function createMovieCard(f, isFav) {
     const div = document.createElement("div");
-    div.classList.add("movie"); // Styl z styles.css
+    div.classList.add("movie");
 
     const posterUrl = f.poster_path 
         ? `https://image.tmdb.org/t/p/w200${f.poster_path}` 
-        : "https://via.placeholder.com/150?text=No+Img";
+        : "https://via.placeholder.com/200x300?text=Brak+Okładki";
     
     const release_year = (f.release_date || f.first_air_date || "").slice(0, 4) || "—";
-    
-    // Ocena i pasek
-    const rawRating = f.vote_average ?? (f.rating ?? 0);
+    const rawRating = f.vote_average ?? 0;
     const ratingText = rawRating ? rawRating.toFixed(1) : "0.0";
     const ratingPercent = Math.min(Math.max(rawRating * 10, 0), 100);
-
     const type = f.media_type || "movie";
     const detailsUrl = `/details.html?id=${f.id}&type=${type}`;
-    
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
     const btnAttr = f.id ? `data-movie-id="${f.id}"` : "";
+    
+    let runtimeHtml;
+    if (f.runtime && f.runtime > 0) {
+        runtimeHtml = `<div style="margin-top:5px; font-size:0.85rem; color:#444; font-weight:bold;">⏱ ${f.runtime} min</div>`;
+    } else {
+        runtimeHtml = `<div style="margin-top:5px; font-size:0.85rem; color:#777;">Czas: ?</div>`;
+    }
 
     div.innerHTML = `
         <a href="${detailsUrl}" style="text-decoration: none; color: inherit; width: 100%;">
             <h3>${f.title || f.name} (${release_year})</h3>
         </a>
-        
         <a href="${detailsUrl}" style="text-decoration: none; display: block;">
             <img src="${posterUrl}" alt="${f.title || f.name}">
         </a>
-        
         <div class="movie-rating-box">
             <p style="margin: 0; display: flex; align-items: center; gap: 5px; justify-content: center;">
                 <span style="color: #f5c518; font-size: 1.2em;">★</span> 
@@ -157,28 +199,23 @@ function createMovieCard(f, isFav) {
             <div class="rating-bar">
                 <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
             </div>
+            ${runtimeHtml}
         </div>
-
         <button class="favorite-btn" ${btnAttr}>${btnText}</button>
     `;
     return div;
 }
 
+// ... helpery bez zmian ...
 function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");
     if (isUserLoggedIn) {
         if (loginBtn) loginBtn.style.display = "none";
-        if (logoutBtn) { 
-            logoutBtn.style.display = "inline-block"; 
-            logoutBtn.onclick = () => window.location.href = "/auth/logout"; 
-        }
+        if (logoutBtn) { logoutBtn.style.display = "inline-block"; logoutBtn.onclick = () => window.location.href = "/auth/logout"; }
     } else {
         if (logoutBtn) logoutBtn.style.display = "none";
-        if (loginBtn) { 
-            loginBtn.style.display = "inline-block"; 
-            loginBtn.onclick = () => window.location.href = "/auth/login"; 
-        }
+        if (loginBtn) { loginBtn.style.display = "inline-block"; loginBtn.onclick = () => window.location.href = "/auth/login"; }
     }
 }
 
@@ -187,9 +224,7 @@ function setupGlobalSearch() {
     const list = document.getElementById('search-suggestions');
     if (!input || !list) return;
 
-    function debounce(fn, wait = 300) {
-        let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
-    }
+    function debounce(fn, wait = 300) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
 
     async function doSearchSuggestions(q) {
         if (!q || q.trim().length < 1) { list.classList.remove('visible'); list.innerHTML = ''; return; }
@@ -200,30 +235,18 @@ function setupGlobalSearch() {
             const hits = data.results || [];
             list.innerHTML = '';
             if (!hits.length) { list.classList.remove('visible'); return; }
-            
             hits.slice(0,6).forEach(item => {
                 const li = document.createElement('li');
                 const year = (item.release_date || item.first_air_date || '').slice(0,4);
                 li.textContent = `${item.title || item.name} ${year ? '('+year+')' : ''}`;
-                li.addEventListener('click', () => {
-                     // Przekierowanie na home z zapytaniem
-                     window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`;
-                });
+                li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`);
                 list.appendChild(li);
             });
             list.classList.add('visible');
         } catch (e) {}
     }
-
     const debouncedSuggest = debounce(e => doSearchSuggestions(e.target.value), 250);
     input.addEventListener('input', debouncedSuggest);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const q = input.value.trim();
-            if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
-        } else if (e.key === 'Escape') list.classList.remove('visible');
-    });
-    input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
     input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
+    input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
 }
