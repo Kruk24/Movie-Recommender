@@ -6,3 +6,4 @@ httpx
 aiosqlite
 greenlet
 sqlalchemy
+itsdangerous
