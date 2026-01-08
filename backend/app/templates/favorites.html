@@ -3,19 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <title>Twoje Ulubione</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=6">
+    <style>
+        /* Styl dla panelu statystyk */
+        .stats-panel {
+            max-width: 900px;
+            margin: 30px auto 50px auto;
+            background: linear-gradient(135deg, #1f1f1f 0%, #141414 100%);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 0.9rem; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .stat-value { font-size: 2rem; font-weight: 800; color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.2); }
+        .stat-divider { width: 1px; height: 50px; background: #333; }
+    </style>
 </head>
 <body>
     <header class="site-header">
         <h1><a href="/" style="color: inherit; text-decoration: none;">Film Recommender</a></h1>
-        
         <div class="global-search-wrapper">
             <div class="global-search">
                 <input id="global-search" type="search" placeholder="Szukaj..." aria-label="Search" autocomplete="off" />
                 <ul id="search-suggestions" class="suggestions" role="listbox" aria-live="polite"></ul>
             </div>
         </div>
-
         <nav class="auth-nav">
             <button onclick="window.location.href='/'">❮ Wróć</button>
             <button id="logout-btn">Wyloguj</button>
@@ -23,7 +40,25 @@
     </header>
 
     <main>
-        <h2 style="text-align: center; margin: 40px 0; font-size: 2rem;">Twoja Kolekcja ❤️</h2>
+        <h2 style="text-align: center; margin: 40px 0; font-size: 2rem; color: #fff;">Twoja Kolekcja ❤️</h2>
+        
+        <div class="stats-panel">
+            <div class="stat-item">
+                <div class="stat-label">Liczba Filmów</div>
+                <div class="stat-value" id="stat-count">-</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-label">Ulubiony Gatunek</div>
+                <div class="stat-value" id="stat-genre">-</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-label">Średnia Ocena</div>
+                <div class="stat-value" id="stat-rating">-</div>
+            </div>
+        </div>
+
         <div id="favorites-container" class="movies-grid">
             <div class="loader">Pobieranie ulubionych...</div>
         </div>
@@ -31,21 +66,14 @@
 
     <script>
         const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
-    </script>
-    <script src="/static/favorites.js"></script>
-    <script>
-        // Szybki inline script do obsługi wylogowania i searcha (bo home.js tu nie ma)
         document.getElementById('logout-btn').addEventListener('click', () => { window.location.href = "/auth/logout"; });
         
-        // Search logic copy (minimal)
+        // Search logic copy
         const input = document.getElementById('global-search');
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const q = input.value.trim();
-                if (q) window.location.href = `/?q=${encodeURIComponent(q)}`;
-            }
+            if (e.key === 'Enter') { e.preventDefault(); const q = input.value.trim(); if (q) window.location.href = `/?q=${encodeURIComponent(q)}`; }
         });
     </script>
+    <script src="/static/favorites.js?v=6"></script>
 </body>
 </html>

@@ -10,8 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (query) {
         searchMovies(query);
+        setActiveButton(null);
     } else {
-        // Domyślnie ładujemy "Na czasie"
+        // Domyślny start
         loadMovies('/movies/trending');
         setActiveButton('popular-btn'); 
     }
@@ -20,7 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
 function setupButtons() {
     const popBtn = document.getElementById("popular-btn");
     const topBtn = document.getElementById("toprated-btn");
+    const revBtn = document.getElementById("revenue-btn");
     const favBtn = document.getElementById("favorites-btn");
+    
+    // NOWY PRZYCISK: Szczęśliwy Traf
+    const luckyBtn = document.getElementById("lucky-btn");
 
     if(popBtn) {
         popBtn.addEventListener("click", () => {
@@ -36,6 +41,13 @@ function setupButtons() {
         });
     }
 
+    if(revBtn) {
+        revBtn.addEventListener("click", () => {
+            loadMovies('/movies/revenue');
+            setActiveButton('revenue-btn');
+        });
+    }
+
     if(favBtn) {
         favBtn.addEventListener("click", () => {
             if(!isUserLoggedIn) {
@@ -45,15 +57,42 @@ function setupButtons() {
             }
         });
     }
+
+    // OBSŁUGA SZCZĘŚLIWEGO TRAFU
+    if (luckyBtn) {
+        luckyBtn.addEventListener("click", async () => {
+            luckyBtn.disabled = true;
+            luckyBtn.textContent = "Losowanie...";
+            try {
+                const res = await fetch('/movies/lucky');
+                if (!res.ok) throw new Error("Błąd");
+                const data = await res.json();
+                // Przekierowanie do detali wylosowanego filmu
+                window.location.href = `/details.html?id=${data.id}&type=${data.type}`;
+            } catch (e) {
+                console.error(e);
+                luckyBtn.textContent = "Błąd :(";
+                setTimeout(() => {
+                    luckyBtn.disabled = false;
+                    luckyBtn.textContent = "Szczęśliwy Traf 🍀";
+                }, 2000);
+            }
+        });
+    }
 }
 
-function setActiveButton(btnId) {
-    // Resetujemy klasę active dla wszystkich przycisków w nav
-    document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
-    
-    // Ustawiamy active tylko dla wybranego
-    const btn = document.getElementById(btnId);
-    if(btn) btn.classList.add('active');
+function setActiveButton(activeBtnId) {
+    const tabButtons = ['popular-btn', 'toprated-btn', 'revenue-btn'];
+
+    tabButtons.forEach(id => {
+        const btn = document.getElementById(id);
+        if(btn) btn.classList.remove('active');
+    });
+
+    if (activeBtnId) {
+        const btn = document.getElementById(activeBtnId);
+        if(btn) btn.classList.add('active');
+    }
 }
 
 async function loadMovies(endpoint) {
@@ -139,7 +178,7 @@ function createMovieCard(movie, isFav) {
     div.classList.add("movie");
 
     const posterUrl = movie.poster_path 
-        ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` 
+        ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` 
         : "https://via.placeholder.com/200x300?text=Brak+Okładki";
     
     const title = movie.title || movie.name;
@@ -159,7 +198,7 @@ function createMovieCard(movie, isFav) {
         <div class="movie-rating-box">
             <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                 <span>Ocena: ${rating}</span>
-                <span style="color: gold;">★</span>
+                <span style="color: #ffcc00;">★</span>
             </div>
             <div class="rating-bar">
                 <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
@@ -201,7 +240,7 @@ function setupGlobalSearch() {
                 const li = document.createElement('li');
                 const year = (item.release_date || item.first_air_date || '').slice(0,4);
                 li.textContent = `${item.title || item.name} ${year ? '('+year+')' : ''}`;
-                li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`);
+                li.addEventListener('click', () => { window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`; });
                 list.appendChild(li);
             });
             list.classList.add('visible');
@@ -209,6 +248,7 @@ function setupGlobalSearch() {
     }
     const debouncedSuggest = debounce(e => doSearchSuggestions(e.target.value), 250);
     input.addEventListener('input', debouncedSuggest);
-    input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
-    input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); const q = input.value.trim(); if (q) window.location.href = `/?q=${encodeURIComponent(q)}`; }
+    });
 }

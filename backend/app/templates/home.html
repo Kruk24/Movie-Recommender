@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Film Recommender</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=5">
 </head>
 <body>
     <header class="site-header">
@@ -25,10 +25,15 @@
     <main>
         <div class="controls">
             <button onclick="window.location.href='/recommendations'" class="rec-btn">Rekomendacje 🎲</button>
+            <button id="lucky-btn" style="border-color: #46d369; color: #46d369;">Szczęśliwy Traf 🍀</button> 
             
             <button id="popular-btn">Na czasie 🔥</button>
             <button id="toprated-btn">Najlepiej oceniane ⭐</button>
+            <button id="revenue-btn">Box Office 💰</button>
+            
             <button id="favorites-btn">Moje Ulubione ❤️</button>
+
+
         </div>
 
         <div id="movies-container" class="movies-grid">
@@ -39,6 +44,6 @@
     <script>
         const loggedIn = "{{ 'true' if request.session.get('session_id') else 'false' }}" === "true";
     </script>
-    <script src="/static/home.js"></script>
+    <script src="/static/home.js?v=5"></script>
 </body>
 </html>

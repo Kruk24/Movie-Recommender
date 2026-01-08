@@ -1,4 +1,4 @@
-// static/recommendations.js
+// frontend/static/recommendations.js
 
 const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
 
@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupGlobalSearch();
 });
 
+// ... Walidacja formularza bez zmian ...
 function validateForm() {
     if (window.currentMode !== 'advanced') {
         document.getElementById('gen-btn').disabled = false;
@@ -46,8 +47,7 @@ async function generate() {
     
     btn.disabled = true;
     btn.textContent = "Analizuję (to chwilę potrwa)...";
-    // Nowy, ładniejszy loader
-    container.innerHTML = "<div class='loader-text'>🔍 Przeszukuję bazę danych...</div>";
+    container.innerHTML = "<div class='loader'>🔍 Przeszukuję bazę danych...</div>";
 
     try {
         const mode = window.currentMode || 'quick';
@@ -124,6 +124,7 @@ async function renderResults(movies, container) {
         container.innerHTML = "<h3 style='text-align:center; margin-top:40px; color:#fff;'>Brak wyników :(</h3>";
         return;
     }
+    // WAŻNE: Dodajemy klasę movies-grid, aby style z CSS zadziałały
     container.innerHTML = `<div class="movies-grid"></div>`;
     const grid = container.querySelector('.movies-grid');
     const favIds = await fetchUserFavoritesIds();
@@ -132,9 +133,9 @@ async function renderResults(movies, container) {
         const isFav = favIds.includes(f.id);
         const card = createMovieCard(f, isFav);
         
-        // --- ANIMACJA: KASKADOWE WEJŚCIE ---
-        // Dodajemy opóźnienie animacji dla każdego kolejnego kafelka
-        card.style.animationDelay = `${index * 50}ms`; 
+        // Animacja kaskadowa (inline style działa z CSS transition)
+        card.style.opacity = '0';
+        card.style.animation = `fadeInUp 0.5s forwards ${index * 0.05}s`;
         
         grid.appendChild(card);
     });
@@ -160,53 +161,46 @@ async function renderResults(movies, container) {
     });
 }
 
-function createMovieCard(f, isFav) {
+// Funkcja IDENTYCZNA jak w home.js dla spójnego wyglądu
+function createMovieCard(movie, isFav) {
     const div = document.createElement("div");
     div.classList.add("movie");
 
-    const posterUrl = f.poster_path 
-        ? `https://image.tmdb.org/t/p/w200${f.poster_path}` 
+    const posterUrl = movie.poster_path 
+        ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` 
         : "https://via.placeholder.com/200x300?text=Brak+Okładki";
     
-    const release_year = (f.release_date || f.first_air_date || "").slice(0, 4) || "—";
-    const rawRating = f.vote_average ?? 0;
-    const ratingText = rawRating ? rawRating.toFixed(1) : "0.0";
-    const ratingPercent = Math.min(Math.max(rawRating * 10, 0), 100);
-    const type = f.media_type || "movie";
-    const detailsUrl = `/details.html?id=${f.id}&type=${type}`;
+    const title = movie.title || movie.name;
+    const releaseDate = movie.release_date || movie.first_air_date || "";
+    const year = releaseDate ? `(${releaseDate.slice(0, 4)})` : "";
+    const rating = movie.vote_average ? movie.vote_average.toFixed(1) : "—";
+    const ratingPercent = Math.min(Math.max((movie.vote_average || 0) * 10, 0), 100);
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
-    const btnAttr = f.id ? `data-movie-id="${f.id}"` : "";
-    
-    let runtimeHtml;
-    if (f.runtime && f.runtime > 0) {
-        runtimeHtml = `<div style="margin-top:5px; font-size:0.85rem; color:#444; font-weight:bold;">⏱ ${f.runtime} min</div>`;
-    } else {
-        runtimeHtml = `<div style="margin-top:5px; font-size:0.85rem; color:#777;">Czas: ?</div>`;
-    }
+    const mediaType = movie.media_type || (movie.title ? "movie" : "tv"); 
 
+    // Używamy struktury HTML zgodnej z styles.css (.movie, .movie-rating-box)
     div.innerHTML = `
-        <a href="${detailsUrl}" style="text-decoration: none; color: inherit; width: 100%;">
-            <h3>${f.title || f.name} (${release_year})</h3>
+        <a href="/details.html?id=${movie.id}&type=${mediaType}" style="text-decoration: none; color: inherit; width: 100%;">
+            <img src="${posterUrl}" alt="${title}" loading="lazy">
+            <h3>${title} <small>${year}</small></h3>
         </a>
-        <a href="${detailsUrl}" style="text-decoration: none; display: block;">
-            <img src="${posterUrl}" alt="${f.title || f.name}">
-        </a>
+        
         <div class="movie-rating-box">
-            <p style="margin: 0; display: flex; align-items: center; gap: 5px; justify-content: center;">
-                <span style="color: #f5c518; font-size: 1.2em;">★</span> 
-                Ocena: ${ratingText}
-            </p>
+            <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                <span>Ocena: ${rating}</span>
+                <span style="color: gold;">★</span>
+            </div>
             <div class="rating-bar">
                 <div class="rating-fill" style="width: ${ratingPercent}%;"></div>
             </div>
-            ${runtimeHtml}
         </div>
-        <button class="favorite-btn" ${btnAttr}>${btnText}</button>
+
+        <button class="favorite-btn" data-movie-id="${movie.id}">${btnText}</button>
     `;
     return div;
 }
 
-// ... helpery bez zmian ...
+// ... Helpery (Auth, Search) bez zmian ...
 function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");
@@ -223,9 +217,7 @@ function setupGlobalSearch() {
     const input = document.getElementById('global-search');
     const list = document.getElementById('search-suggestions');
     if (!input || !list) return;
-
     function debounce(fn, wait = 300) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; }
-
     async function doSearchSuggestions(q) {
         if (!q || q.trim().length < 1) { list.classList.remove('visible'); list.innerHTML = ''; return; }
         try {
@@ -239,7 +231,7 @@ function setupGlobalSearch() {
                 const li = document.createElement('li');
                 const year = (item.release_date || item.first_air_date || '').slice(0,4);
                 li.textContent = `${item.title || item.name} ${year ? '('+year+')' : ''}`;
-                li.addEventListener('click', () => window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`);
+                li.addEventListener('click', () => { window.location.href = `/?q=${encodeURIComponent(item.title || item.name)}`; });
                 list.appendChild(li);
             });
             list.classList.add('visible');
@@ -247,6 +239,10 @@ function setupGlobalSearch() {
     }
     const debouncedSuggest = debounce(e => doSearchSuggestions(e.target.value), 250);
     input.addEventListener('input', debouncedSuggest);
-    input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); const q = input.value.trim(); if (q) window.location.href = `/?q=${encodeURIComponent(q)}`; } 
+        else if (e.key === 'Escape') list.classList.remove('visible');
+    });
     input.addEventListener('blur', () => setTimeout(() => list.classList.remove('visible'), 150));
+    input.addEventListener('focus', () => { if(input.value.trim()) doSearchSuggestions(input.value); });
 }
