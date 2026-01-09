@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Centrum Rekomendacji</title>
-    <link rel="stylesheet" href="/static/styles.css?v=11">
+    <link rel="stylesheet" href="/static/styles.css?v=13">
     <style>
         /* ... Style bez zmian ... */
         .rec-container { max-width: 1200px; margin: 40px auto; padding: 20px 40px; }
@@ -77,7 +77,7 @@
                 <div class="form-group" style="background:#2a2a2a; padding:15px; border-radius:8px; border:1px solid #444;">
                     <label style="margin:0; cursor:pointer; display:flex; align-items:center; gap:10px; color:#fff;">
                         <input type="checkbox" id="use-fav" checked style="width:20px; height:20px;"> 
-                        <span>Uwzględnij moje ulubione <small style="color:#888; font-weight:normal;">(Algorytm dopasuje wyniki do Twojego gustu)</small></span>
+                        <span>Uwzględnij moje ulubione <small style="color:#888; font-weight:normal;">(Algorytm przeanalizuje reżyserów i oceny)</small></span>
                     </label>
                 </div>
                 
@@ -87,38 +87,27 @@
                         <select id="mood-select">
                             <option value="">-- Nie określono --</option>
                             <option value="laugh">😂 Chcę się pośmiać</option>
-                            <option value="scary">😱 Chcę się bać (Horror)</option>
+                            <option value="scary">😱 Chcę się bać</option>
                             <option value="adrenaline">🔥 Potrzebuję adrenaliny</option>
                             <option value="cry">😢 Chcę się wzruszyć</option>
                             <option value="think">🤔 Chcę pomyśleć</option>
                         </select>
+                    </div>
+
+                    <div class="form-col">
+                        <label>Czas trwania</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="number" id="runtime-min" placeholder="Min" oninput="validateForm()">
+                            <input type="number" id="runtime-max" placeholder="Max" oninput="validateForm()">
+                        </div>
+                        <div id="runtime-error" class="error-msg">Błąd zakresu czasu.</div>
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-top: 20px;">
                     <label>Gdzie oglądasz? (Wybierz serwis)</label>
                     <div class="providers-grid" id="provider-selector">
-                        <div class="provider-option" data-id="8" title="Netflix">
-                            <img src="https://image.tmdb.org/t/p/w92/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg" alt="Netflix">
-                        </div>
-                        <div class="provider-option" data-id="337" title="Disney+">
-                            <img src="https://image.tmdb.org/t/p/w92/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg" alt="Disney+">
-                        </div>
-                        <div class="provider-option" data-id="1899" title="Max">
-                            <img src="https://image.tmdb.org/t/p/w92/6Q3ZYBcWFKZNsvFQWxcflXYpwj5.jpg" alt="Max">
-                        </div>
-                        <div class="provider-option" data-id="119" title="Amazon Prime">
-                            <img src="https://image.tmdb.org/t/p/w92/5NyLm42TmCqCMOZFvH4fcoSNKEW.jpg" alt="Prime Video">
-                        </div>
-                        <div class="provider-option" data-id="350" title="Apple TV+">
-                            <img src="https://image.tmdb.org/t/p/w92/2E03IAfXddSiZqvf1c6PBOjC8l1.jpg" alt="Apple TV+">
-                        </div>
-                        <div class="provider-option" data-id="1773" title="SkyShowtime">
-                            <img src="https://image.tmdb.org/t/p/w92/ho87Y0GCPG01wUu791Agd7dlo70.jpg" alt="SkyShowtime">
-                        </div>
-                        <div class="provider-option" data-id="238" title="Canal+">
-                            <img src="https://image.tmdb.org/t/p/w92/9a1949392c01d41c48c39719323.jpg" alt="Canal+">
-                        </div>
+                        <div style="color:#888; font-size:0.9rem;">Ładowanie dostawców...</div>
                     </div>
                 </div>
 
@@ -157,10 +146,10 @@
                     </div>
 
                     <div class="form-col">
-                        <label>Klimat (Preferencja)</label>
+                        <label>Popularność</label>
                         <select id="pref-select">
-                            <option value="popular">🔥 Najpopularniejsze Hity</option>
-                            <option value="niche">💎 Ukryte Perełki (Wysokie Oceny)</option>
+                            <option value="popular">🔥 Popularne produkcje</option>
+                            <option value="niche">💎 Ukryte Perełki</option>
                         </select>
                     </div>
                 </div>
@@ -221,6 +210,6 @@
         }
         window.currentMode = 'quick';
     </script>
-    <script src="/static/recommendations.js?v=11"></script>
+    <script src="/static/recommendations.js?v=13"></script>
 </body>
 </html>

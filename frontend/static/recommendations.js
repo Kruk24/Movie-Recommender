@@ -5,27 +5,60 @@ const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
 document.addEventListener("DOMContentLoaded", () => {
     setupAuthButtons();
     setupGlobalSearch();
-    setupProviderSelection(); // Nowa funkcja
+    loadProviders(); // <-- TO WYWOŁUJE DYNAMICZNE ŁADOWANIE
 });
 
-// Obsługa wyboru providera (logika kafelków)
-function setupProviderSelection() {
-    const options = document.querySelectorAll('.provider-option');
-    options.forEach(option => {
-        option.addEventListener('click', () => {
-            // Jeśli już zaznaczony, odznaczamy (toggle)
-            if (option.classList.contains('selected')) {
-                option.classList.remove('selected');
-            } else {
-                // Jeśli nie, zaznaczamy ten, a inne odznaczamy (single select)
-                options.forEach(opt => opt.classList.remove('selected'));
-                option.classList.add('selected');
-            }
+// Pobieranie dostawców z backendu (który bierze z TMDB API)
+async function loadProviders() {
+    const container = document.getElementById('provider-selector');
+    try {
+        const res = await fetch('/movies/providers');
+        if (!res.ok) throw new Error("Błąd pobierania");
+        const data = await res.json();
+        const providers = data.providers || [];
+
+        if (providers.length === 0) {
+            container.innerHTML = "<span style='color:#666; font-size:0.8rem;'>Nie udało się załadować listy.</span>";
+            return;
+        }
+
+        container.innerHTML = ""; // Czyścimy "Ładowanie..."
+        
+        providers.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'provider-option';
+            div.dataset.id = p.provider_id;
+            div.title = p.provider_name;
+            
+            // Używamy "original", tak jak w detalach, żeby było wyraźne
+            const img = document.createElement('img');
+            img.src = `https://image.tmdb.org/t/p/original${p.logo_path}`;
+            img.alt = p.provider_name;
+            
+            div.appendChild(img);
+            
+            // Obsługa kliknięcia (selekcja)
+            div.addEventListener('click', () => {
+                if (div.classList.contains('selected')) {
+                    div.classList.remove('selected');
+                } else {
+                    document.querySelectorAll('.provider-option').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                }
+            });
+            
+            container.appendChild(div);
         });
-    });
+
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = "<span style='color:red;'>Błąd.</span>";
+    }
 }
 
-// Walidacja formularza
+// ... (Reszta funkcji: validateForm, generate, fetchUserFavoritesIds, renderResults, createMovieCard, setupAuthButtons, setupGlobalSearch - POZOSTAJE BEZ ZMIAN) ...
+// Wklejam je dla pewności, żebyś miał cały plik gotowy.
+
 function validateForm() {
     if (window.currentMode !== 'advanced') {
         document.getElementById('gen-btn').disabled = false;
@@ -92,7 +125,7 @@ async function generate() {
             const getFloat = (id) => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || null) : null; };
             const getString = (id) => { const el = document.getElementById(id); return (el && el.value) ? el.value : null; };
 
-            // Pobieranie wybranego providera z UI
+            // Pobieranie wybranego providera z UI (teraz dynamicznie wygenerowanego)
             const selectedProviderEl = document.querySelector('.provider-option.selected');
             const providerId = selectedProviderEl ? selectedProviderEl.getAttribute('data-id') : null;
 
@@ -107,7 +140,7 @@ async function generate() {
                 country: getString('country-select'),
                 preference: getString('pref-select'),
                 mood: getString('mood-select'),
-                provider: providerId // Przesyłamy ID providera
+                provider: providerId
             };
         }
 
@@ -125,13 +158,7 @@ async function generate() {
         console.error(err);
         container.innerHTML = `<p style='color:red; text-align:center; margin-top: 20px; font-size:1.2rem;'>Wystąpił błąd: ${err.message}</p>`;
     } finally {
-        // NAPRAWA ZACINANIA SIĘ PRZYCISKU
-        // Resetujemy tekst
         btn.textContent = "Generuj Rekomendacje 🎲";
-        
-        // Sprawdzamy walidację, żeby ustawić disabled na poprawny stan
-        // (jeśli formularz był ok przed wysłaniem, to nadal jest ok)
-        // Dla bezpieczeństwa odblokuj, chyba że walidacja powie "nie"
         btn.disabled = false;
         validateForm(); 
     }

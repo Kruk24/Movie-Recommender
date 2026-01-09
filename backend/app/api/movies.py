@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import httpx
 import os
-import random # <--- KONIECZNE DLA SZCZĘŚLIWEGO TRAFU
+import random
 from app.core.config import settings
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -10,7 +10,10 @@ router = APIRouter(prefix="/movies", tags=["movies"])
 API_KEY = os.getenv("TMDB_API_KEY") or settings.TMDB_API_KEY
 BASE_URL = settings.TMDB_BASE_URL
 
-# --- HELPERY ---
+# Nagłówki, żeby TMDB nie blokowało (ważne na Renderze)
+HEADERS = settings.TMDB_HEADERS 
+
+# --- HELPERY (bez zmian) ---
 async def fetch_fixed_amount(client, url, params, limit=24):
     results = []
     params["page"] = 1
@@ -26,12 +29,42 @@ async def fetch_fixed_amount(client, url, params, limit=24):
     valid_results = [m for m in results if m.get("poster_path")]
     return valid_results[:limit]
 
-# --- ENDPOINTY ---
+# --- NOWY ENDPOINT: DOSTAWCY STREAMINGU ---
+@router.get("/providers")
+async def get_watch_providers():
+    """Zwraca listę popularnych dostawców w Polsce z aktualnymi logami prosto z API."""
+    # ID serwisów, które chcesz wyświetlać:
+    # 8: Netflix, 337: Disney+, 1899: Max, 119: Prime, 350: Apple TV, 1773: SkyShowtime, 238: Canal+
+    TARGET_IDS = [8, 337, 1899, 119, 350, 1773, 238]
+    
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        url = f"{BASE_URL}/watch/providers/movie"
+        params = {"api_key": API_KEY, "language": "pl-PL", "watch_region": "PL"}
+        try:
+            resp = await client.get(url, params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                
+                # Filtrujemy tylko te z naszej listy TARGET_IDS
+                filtered = [p for p in results if p["provider_id"] in TARGET_IDS]
+                
+                # Sortujemy tak, żeby były w kolejności jak w TARGET_IDS
+                filtered.sort(key=lambda x: TARGET_IDS.index(x["provider_id"]))
+                
+                return {"providers": filtered}
+        except Exception as e:
+            print(f"Błąd pobierania providerów: {e}")
+            return {"providers": []}
+    return {"providers": []}
+
+# --- RESZTA ENDPOINTÓW (SEARCH, POPULAR, ETC.) ---
+# ... (pozostaw resztę pliku bez zmian, upewnij się tylko, że używasz `headers=HEADERS` w clientach)
 
 @router.get("/search")
 async def search_movies(q: str, page: int = 1, limit: int = 24):
     if not q: return {"results": []}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/search/multi"
         params = {"api_key": API_KEY, "query": q, "page": page, "language": "pl-PL", "include_adult": "false"}
         response = await client.get(url, params=params)
@@ -42,7 +75,7 @@ async def search_movies(q: str, page: int = 1, limit: int = 24):
 
 @router.get("/popular")
 async def get_popular():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/movie/popular"
         params = {"api_key": API_KEY, "language": "pl-PL"}
         results = await fetch_fixed_amount(client, url, params, limit=24)
@@ -50,7 +83,7 @@ async def get_popular():
 
 @router.get("/trending")
 async def get_trending():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/trending/movie/week"
         params = {"api_key": API_KEY, "language": "pl-PL"}
         results = await fetch_fixed_amount(client, url, params, limit=24)
@@ -58,7 +91,7 @@ async def get_trending():
 
 @router.get("/top_rated")
 async def get_top_rated():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/movie/top_rated"
         params = {"api_key": API_KEY, "language": "pl-PL"}
         params["vote_count.gte"] = 300 
@@ -67,7 +100,7 @@ async def get_top_rated():
 
 @router.get("/revenue")
 async def get_revenue():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/discover/movie"
         params = {
             "api_key": API_KEY, 
@@ -79,10 +112,9 @@ async def get_revenue():
         results = await fetch_fixed_amount(client, url, params, limit=24)
         return {"results": results}
 
-# --- SZCZĘŚLIWY TRAF ---
 @router.get("/lucky")
 async def get_lucky():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         random_page = random.randint(1, 20)
         url = f"{BASE_URL}/movie/top_rated"
         params = {"api_key": API_KEY, "language": "pl-PL", "page": random_page}
@@ -99,7 +131,7 @@ async def get_lucky():
 @router.get("/details/{media_type}/{tmdb_id}")
 async def get_details(media_type: str, tmdb_id: int):
     if media_type not in ["movie", "tv"]: media_type = "movie"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         url = f"{BASE_URL}/{media_type}/{tmdb_id}"
         params = {"api_key": API_KEY, "language": "pl-PL", "append_to_response": "credits,watch/providers,keywords"}
         response = await client.get(url, params=params)
