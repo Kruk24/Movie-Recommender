@@ -5,7 +5,25 @@ const isUserLoggedIn = (typeof loggedIn !== 'undefined') ? loggedIn : false;
 document.addEventListener("DOMContentLoaded", () => {
     setupAuthButtons();
     setupGlobalSearch();
+    setupProviderSelection(); // Nowa funkcja
 });
+
+// Obsługa wyboru providera (logika kafelków)
+function setupProviderSelection() {
+    const options = document.querySelectorAll('.provider-option');
+    options.forEach(option => {
+        option.addEventListener('click', () => {
+            // Jeśli już zaznaczony, odznaczamy (toggle)
+            if (option.classList.contains('selected')) {
+                option.classList.remove('selected');
+            } else {
+                // Jeśli nie, zaznaczamy ten, a inne odznaczamy (single select)
+                options.forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+            }
+        });
+    });
+}
 
 // Walidacja formularza
 function validateForm() {
@@ -74,6 +92,10 @@ async function generate() {
             const getFloat = (id) => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || null) : null; };
             const getString = (id) => { const el = document.getElementById(id); return (el && el.value) ? el.value : null; };
 
+            // Pobieranie wybranego providera z UI
+            const selectedProviderEl = document.querySelector('.provider-option.selected');
+            const providerId = selectedProviderEl ? selectedProviderEl.getAttribute('data-id') : null;
+
             payload.filters = {
                 genres: genresList,
                 genre_mode: genreMode,
@@ -84,7 +106,8 @@ async function generate() {
                 runtime_max: getVal('runtime-max'),
                 country: getString('country-select'),
                 preference: getString('pref-select'),
-                mood: getString('mood-select')
+                mood: getString('mood-select'),
+                provider: providerId // Przesyłamy ID providera
             };
         }
 
@@ -102,11 +125,15 @@ async function generate() {
         console.error(err);
         container.innerHTML = `<p style='color:red; text-align:center; margin-top: 20px; font-size:1.2rem;'>Wystąpił błąd: ${err.message}</p>`;
     } finally {
-        validateForm(); 
-        if (!document.getElementById('year-error').style.display || document.getElementById('year-error').style.display === 'none') {
-             btn.disabled = false;
-        }
+        // NAPRAWA ZACINANIA SIĘ PRZYCISKU
+        // Resetujemy tekst
         btn.textContent = "Generuj Rekomendacje 🎲";
+        
+        // Sprawdzamy walidację, żeby ustawić disabled na poprawny stan
+        // (jeśli formularz był ok przed wysłaniem, to nadal jest ok)
+        // Dla bezpieczeństwa odblokuj, chyba że walidacja powie "nie"
+        btn.disabled = false;
+        validateForm(); 
     }
 }
 
@@ -125,7 +152,7 @@ async function renderResults(movies, container) {
         container.innerHTML = "<h3 style='text-align:center; margin-top:40px; color:#fff;'>Brak wyników :(</h3>";
         return;
     }
-    // WAŻNE: Dodajemy klasę movies-grid dla styli
+    
     container.innerHTML = `<div class="movies-grid"></div>`;
     const grid = container.querySelector('.movies-grid');
     const favIds = await fetchUserFavoritesIds();
@@ -173,7 +200,6 @@ function createMovieCard(movie, isFav) {
     const btnText = isFav ? "Usuń z ulubionych" : "Dodaj do ulubionych";
     const mediaType = movie.media_type || (movie.title ? "movie" : "tv"); 
 
-    // CZAS TRWANIA - Logika "?" i pozycja
     let runtimeHtml;
     if (movie.runtime && movie.runtime > 0) {
         const h = Math.floor(movie.runtime / 60);
@@ -192,7 +218,6 @@ function createMovieCard(movie, isFav) {
         
         <div class="movie-rating-box">
             ${runtimeHtml}
-            
             <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                 <span>Ocena: ${rating}</span>
                 <span style="color: #ffcc00;">★</span>
@@ -207,7 +232,7 @@ function createMovieCard(movie, isFav) {
     return div;
 }
 
-// ... helpery bez zmian ...
+// ... helpery ...
 function setupAuthButtons() {
     const loginBtn = document.getElementById("login-btn");
     const logoutBtn = document.getElementById("logout-btn");

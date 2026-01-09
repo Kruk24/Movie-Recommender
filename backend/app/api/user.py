@@ -13,7 +13,6 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/user", tags=["user"])
 
-# Konfiguracja API na poziomie modułu - pewniejsza niż wewnątrz funkcji
 API_KEY = os.getenv("TMDB_API_KEY") or settings.TMDB_API_KEY
 BASE_URL = settings.TMDB_BASE_URL
 
@@ -61,7 +60,6 @@ async def toggle_favorite(
     if not session_id:
         raise HTTPException(status_code=401, detail="Not logged in")
 
-    # 1. Sprawdzamy czy już jest w ulubionych
     stmt = select(FavoriteMovie).where(
         FavoriteMovie.user_session_id == session_id,
         FavoriteMovie.tmdb_id == tmdb_id
@@ -69,13 +67,10 @@ async def toggle_favorite(
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
 
-    # 2. Jeśli jest - usuwamy
     if existing:
         await db.delete(existing)
         await db.commit()
         return {"removed": True}
-    
-    # 3. Jeśli nie ma - musimy pobrać dane z API i dodać
     else:
         title = "Nieznany"
         poster = ""
@@ -84,47 +79,54 @@ async def toggle_favorite(
         m_type = "movie"
         runtime = 0
         genre_ids = []
+        director_ids = [] # Lista ID reżyserów
 
         try:
             async with httpx.AsyncClient() as client:
-                params = {"api_key": API_KEY, "language": "pl-PL"}
+                # Dodajemy append_to_response, żeby pobrać ekipę (credits) w jednym strzale
+                params = {
+                    "api_key": API_KEY, 
+                    "language": "pl-PL",
+                    "append_to_response": "credits"
+                }
                 
-                # Próba 1: Film
                 resp = await client.get(f"{BASE_URL}/movie/{tmdb_id}", params=params)
                 
                 if resp.status_code != 200:
-                    # Próba 2: Serial (jeśli film nie znaleziony)
                     m_type = "tv"
                     resp = await client.get(f"{BASE_URL}/tv/{tmdb_id}", params=params)
                 
                 if resp.status_code == 200:
                     data = resp.json()
                     
-                    # Wyciąganie danych
                     title = data.get("title") or data.get("name") or "Bez tytułu"
                     poster = data.get("poster_path")
                     date = data.get("release_date") or data.get("first_air_date")
                     vote = data.get("vote_average") or 0.0
                     
-                    # Gatunki
                     genres_data = data.get("genres", [])
                     genre_ids = [g["id"] for g in genres_data]
                     
-                    # Runtime (różne pola dla movie i tv)
                     if "runtime" in data:
                         runtime = data["runtime"] or 0
                     elif "episode_run_time" in data and data["episode_run_time"]:
-                        # Seriale mają tablicę czasów odcinków
                         runtime = data["episode_run_time"][0]
+
+                    # Ekstrakcja Reżyserów / Twórców
+                    if m_type == "movie":
+                        crew = data.get("credits", {}).get("crew", [])
+                        director_ids = [m['id'] for m in crew if m.get("job") == "Director"]
+                    else:
+                        # W serialach są "created_by"
+                        created_by = data.get("created_by", [])
+                        director_ids = [p['id'] for p in created_by]
+
                 else:
                     print(f"BŁĄD TMDB API: Status {resp.status_code} dla ID {tmdb_id}")
 
         except Exception as e:
             print(f"WYJĄTEK W TOGGLE_FAVORITE: {e}")
-            # Mimo błędu nie przerywamy, dodamy 'Pusty' wpis, żeby nie crashować UI
-            # Ale w konsoli serwera zobaczysz co się stało
 
-        # Zapis do bazy
         new_fav = FavoriteMovie(
             user_session_id=session_id,
             tmdb_id=tmdb_id,
@@ -134,7 +136,8 @@ async def toggle_favorite(
             release_date=date,
             vote_average=vote,
             runtime=runtime,
-            genres_json=json.dumps(genre_ids)
+            genres_json=json.dumps(genre_ids),
+            directors_json=json.dumps(director_ids) # Zapisujemy reżyserów
         )
         db.add(new_fav)
         await db.commit()
@@ -161,17 +164,14 @@ async def get_user_stats(request: Request, db: AsyncSession = Depends(get_db)):
     valid_runtimes = 0
 
     for m in movies:
-        # Ocena
         if m.vote_average:
             total_rating += m.vote_average
             valid_ratings += 1
         
-        # Czas
         if m.runtime and m.runtime > 0:
             total_runtime += m.runtime
             valid_runtimes += 1
             
-        # Gatunki
         try:
             if m.genres_json:
                 g_list = json.loads(m.genres_json)
@@ -180,7 +180,6 @@ async def get_user_stats(request: Request, db: AsyncSession = Depends(get_db)):
                         all_genres.append(GENRE_MAP[g_id])
         except: pass
 
-    # Top Gatunek
     top_genre_str = "Mieszany"
     if all_genres:
         most_common = Counter(all_genres).most_common(1)
@@ -190,18 +189,19 @@ async def get_user_stats(request: Request, db: AsyncSession = Depends(get_db)):
             percent = int((g_count / len(all_genres)) * 100)
             top_genre_str = f"{g_name} ({percent}%)"
 
-    # Średnia ocena
     avg_rating = 0
     if valid_ratings > 0:
         avg_rating = round(total_rating / valid_ratings, 1)
 
-    # Średni czas
     avg_runtime_str = "0 min"
     if valid_runtimes > 0:
         avg_min = int(total_runtime / valid_runtimes)
         h = avg_min // 60
         m = avg_min % 60
-        avg_runtime_str = f"{h}h {m}min" if h > 0 else f"{m} min"
+        if h > 0:
+            avg_runtime_str = f"{h}h {m}min"
+        else:
+            avg_runtime_str = f"{m} min"
 
     return {
         "count": count,
