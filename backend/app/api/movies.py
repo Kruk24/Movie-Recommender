@@ -116,7 +116,7 @@ async def get_revenue():
 async def get_lucky():
     async with httpx.AsyncClient(headers=HEADERS) as client:
         random_page = random.randint(1, 20)
-        url = f"{BASE_URL}/movie/top_rated"
+        url = f"{BASE_URL}/trending/movie/week"
         params = {"api_key": API_KEY, "language": "pl-PL", "page": random_page}
         try:
             resp = await client.get(url, params=params)
